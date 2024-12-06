@@ -9,7 +9,7 @@ NEWSPIDER_MODULE = 'resource_crawler.spiders'
 USER_AGENT = 'ResourceCrawler (+http://www.yourdomain.com)'  
 
 # Obey robots.txt rules  
-ROBOTSTXT_OBEY = True  
+ROBOTSTXT_OBEY = False  
 
 # Configure maximum concurrent requests  
 CONCURRENT_REQUESTS = 16  

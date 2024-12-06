@@ -1,3 +1,4 @@
+# crawler/resource_crawler/spiders/resource_spider.py  
 import scrapy  
 from scrapy.spiders import CrawlSpider, Rule  
 from scrapy.linkextractors import LinkExtractor  
@@ -6,9 +7,9 @@ import json
 import redis  
 from datetime import datetime  
 import logging  
-from bs4 import BeautifulSoup  
 import re  
 
+# Configure logging  
 logging.basicConfig(  
     filename='crawler.log',  
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  
@@ -23,7 +24,7 @@ class ResourceSpider(CrawlSpider):
 
     # Custom settings for the spider  
     custom_settings = {  
-        'ROBOTSTXT_OBEY': True,  
+        'ROBOTSTXT_OBEY': False,  # Bypass robots.txt restrictions  
         'CONCURRENT_REQUESTS': 16,  
         'DOWNLOAD_DELAY': 1,  
         'COOKIES_ENABLED': False,  
@@ -117,7 +118,6 @@ class ResourceSpider(CrawlSpider):
     def parse_github(self, response):  
         """Parse GitHub repository pages"""  
         try:  
-            # Extract repository information  
             return {  
                 'title': response.css('h1.d-flex::text').get('').strip(),  
                 'description': response.css('.f4.my-3::text').get('').strip(),  
@@ -178,16 +178,6 @@ class ResourceSpider(CrawlSpider):
         except Exception as e:  
             logging.error(f"Error parsing Medium page {response.url}: {str(e)}")  
             return None  
-
-    def clean_text(self, text):  
-        """Clean and normalize text content"""  
-        if not text:  
-            return ''  
-        # Remove extra whitespace and normalize  
-        text = re.sub(r'\s+', ' ', text.strip())  
-        # Remove special characters but keep basic punctuation  
-        text = re.sub(r'[^\w\s.,!?-]', '', text)  
-        return text  
 
     def closed(self, reason):  
         """Called when the spider is closed"""  
