@@ -94,7 +94,7 @@
 
             // Create new WebSocket connection  
             try {  
-                ws = new WebSocket(`ws://${window.location.host}/ws/search`);  
+                ws = new WebSocket(`ws://${window.location.hostname}:8000/ws/search`); 
             } catch (error) {  
                 updateStatus(`WebSocket connection error: ${error.message}`, true);  
                 searchButton.disabled = false;  
