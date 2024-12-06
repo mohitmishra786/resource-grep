@@ -44,10 +44,15 @@ class SearchIndex:
                 logger.error(f"Error creating index: {str(e)}")  
                 raise  
 
-    async def search_stream(self, query: str) -> Generator[Dict[str, Any], None, None]:  
-        """Stream search results as they come"""  
+    # search/index.py  
+    # Replace the search_stream method with this:  
+    async def search_stream(self, query: str) -> Generator[List[Dict], None, None]:  
         try:  
-            # Initial search  
+            if not self.es.ping():  
+                raise Exception("Elasticsearch is not available")  
+
+            logger.info(f"Performing Elasticsearch search for query: {query}")  
+
             results = self.es.search(  
                 index='websearch',  
                 body={  
@@ -66,41 +71,30 @@ class SearchIndex:
                             'description': {}  
                         }  
                     },  
-                    'size': 10,  
-                    '_source': ['url', 'title', 'domain', 'resource_type', 'description', 'timestamp']  
+                    'size': 10  
                 }  
             )  
 
-            # Process and yield initial results  
-            processed_results = self._process_results(results)  
-            if processed_results:  
-                yield processed_results  
+            # Process results before yielding  
+            processed_results = []  
+            for hit in results['hits']['hits']:  
+                processed_result = {  
+                    'url': hit['_source'].get('url', ''),  
+                    'title': hit['_source'].get('title', 'Untitled'),  
+                    'description': hit['_source'].get('description', ''),  
+                    'domain': hit['_source'].get('domain', ''),  
+                    'resource_type': hit['_source'].get('resource_type', 'unknown'),  
+                    'snippet': hit.get('highlight', {}).get('content', [''])[0] if 'highlight' in hit else '',  
+                    'score': hit['_score']  
+                }  
+                processed_results.append(processed_result)  
 
-            # Get scroll ID for subsequent requests  
-            scroll_id = results.get('_scroll_id')  
-
-            # Continue scrolling if we have a scroll ID  
-            while scroll_id:  
-                try:  
-                    results = self.es.scroll(  
-                        scroll_id=scroll_id,  
-                        scroll='2m'  
-                    )  
-
-                    processed_results = self._process_results(results)  
-                    if not processed_results:  
-                        break  
-
-                    yield processed_results  
-
-                except Exception as e:  
-                    logger.error(f"Error during scroll: {str(e)}")  
-                    break  
+            logger.info(f"Found {len(processed_results)} results")  
+            yield processed_results  
 
         except Exception as e:  
-            logger.error(f"Search error: {str(e)}")  
+            logger.error(f"Elasticsearch search error: {str(e)}")  
             raise  
-
     def _process_results(self, results: Dict) -> List[Dict]:  
         """Process and format search results"""  
         processed = []  

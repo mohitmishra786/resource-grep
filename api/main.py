@@ -15,7 +15,73 @@ from typing import List, Dict, Any
 logging.basicConfig(level=logging.INFO)  
 logger = logging.getLogger(__name__)  
 
-app = FastAPI()  
+app = FastAPI()
+
+# Add this to your api/main.py after FastAPI initialization  
+# Replace the startup_event function with this:  
+@app.on_event("startup")  
+async def startup_event():  
+    try:  
+        # Initialize Elasticsearch  
+        es_client = Elasticsearch(['http://localhost:9200'])  
+
+        # Check if index exists  
+        if not es_client.indices.exists(index='websearch'):  
+            # Create index with mappings  
+            mappings = {  
+                "mappings": {  
+                    "properties": {  
+                        "url": {"type": "keyword"},  
+                        "title": {"type": "text"},  
+                        "content": {"type": "text"},  
+                        "code_snippets": {"type": "text"},  
+                        "domain": {"type": "keyword"},  
+                        "resource_type": {"type": "keyword"},  
+                        "timestamp": {"type": "date"},  
+                        "description": {"type": "text"}  
+                    }  
+                }  
+            }  
+            es_client.indices.create(index='websearch', body=mappings)  
+            logger.info("Created Elasticsearch index 'websearch'")  
+
+        # Add test documents  
+        test_docs = [  
+            {  
+                "url": "http://test.com/flask",  
+                "title": "Flask Web Framework",  
+                "content": "Flask is a lightweight WSGI web application framework in Python. It is designed to make getting started quick and easy, with the ability to scale up to complex applications.",  
+                "description": "Python web framework for building web applications",  
+                "domain": "test.com",  
+                "resource_type": "framework",  
+                "timestamp": datetime.now().isoformat()  
+            },  
+            {  
+                "url": "http://test.com/django",  
+                "title": "Django Web Framework",  
+                "content": "Django is a high-level Python Web framework that encourages rapid development and clean, pragmatic design.",  
+                "description": "Full-featured Python web framework",  
+                "domain": "test.com",  
+                "resource_type": "framework",  
+                "timestamp": datetime.now().isoformat()  
+            }  
+        ]  
+
+        for doc in test_docs:  
+            try:  
+                es_client.index(index='websearch', id=doc['url'], body=doc)  
+                logger.info(f"Added test document: {doc['title']}")  
+            except Exception as e:  
+                logger.error(f"Error adding test document: {str(e)}")  
+
+        # Log index status  
+        stats = es_client.indices.stats(index='websearch')  
+        doc_count = stats['indices']['websearch']['total']['docs']['count']  
+        logger.info(f"Elasticsearch index 'websearch' contains {doc_count} documents")  
+
+    except Exception as e:  
+        logger.error(f"Elasticsearch initialization error: {str(e)}")  
+        raise  
 
 # Initialize services  
 try:  
@@ -77,37 +143,31 @@ manager = ConnectionManager()
 async def read_root():  
     return FileResponse("static/index.html")  
 
+# Replace the websocket_endpoint function with this:  
 @app.websocket("/ws/search")  
 async def websocket_endpoint(websocket: WebSocket):  
     await manager.connect(websocket)  
-
     try:  
         while True:  
             try:  
-                # Receive the search query  
                 data = await websocket.receive_text()  
+                logger.info(f"Received WebSocket data: {data}")  
+
                 search_data = json.loads(data)  
                 query = search_data['query']  
                 limit = search_data.get('limit')  
 
-                logger.info(f"Received search query: {query} with limit: {limit}")  
+                logger.info(f"Processing search query: {query} with limit: {limit}")  
 
-                # Store search query in Redis  
-                redis_client.lpush("recent_searches", json.dumps({  
-                    "query": query,  
-                    "timestamp": datetime.now().isoformat(),  
-                    "limit": limit  
-                }))  
-
-                # Send acknowledgment  
                 await websocket.send_json({  
                     "status": "started",  
                     "message": f"Starting search for: {query}"  
                 })  
 
-                # Perform search  
+                search_index = SearchIndex()  
+                result_count = 0  
+
                 try:  
-                    result_count = 0  
                     async for results in search_index.search_stream(query):  
                         if results:  
                             result_count += len(results)  
@@ -117,13 +177,10 @@ async def websocket_endpoint(websocket: WebSocket):
                                 "finished": False  
                             })  
 
-                            if limit and result_count >= int(limit):  
-                                break  
-
                     # Send completion message  
                     await websocket.send_json({  
                         "status": "success",  
-                        "message": "Search completed",  
+                        "message": f"Found {result_count} results",  
                         "finished": True  
                     })  
 
@@ -135,14 +192,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     })  
 
             except WebSocketDisconnect:  
+                logger.info("WebSocket disconnected")  
                 manager.disconnect(websocket)  
                 break  
-            except json.JSONDecodeError as e:  
-                logger.error(f"Invalid JSON received: {str(e)}")  
-                await websocket.send_json({  
-                    "status": "error",  
-                    "message": "Invalid search query format"  
-                })  
             except Exception as e:  
                 logger.error(f"Error processing message: {str(e)}")  
                 await websocket.send_json({  
