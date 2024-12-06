@@ -23,7 +23,7 @@ class ResourceSpider(CrawlSpider):
 
     # Custom settings for the spider  
     custom_settings = {  
-        'ROBOTSTXT_OBEY': True,  
+        'ROBOTSTXT_OBEY': False,  
         'CONCURRENT_REQUESTS': 16,  
         'DOWNLOAD_DELAY': 1,  
         'COOKIES_ENABLED': False,  
@@ -62,6 +62,8 @@ class ResourceSpider(CrawlSpider):
     )  
 
     def __init__(self, search_query=None, *args, **kwargs):  
+        # logging.info(f"Initialized spider with search query: {self.search_query}")  
+        # logging.info(f"Start URLs: {self.start_urls}")  
         super(ResourceSpider, self).__init__(*args, **kwargs)  
         self.redis_client = redis.Redis(host='localhost', port=6379, db=0)  
         self.search_query = search_query  
