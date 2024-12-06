@@ -129,6 +129,24 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+rgrep/
+
+# IDE  
+.idea/  
+.vscode/  
+*.swp  
+*.swo  
+
+# Logs and databases  
+*.log  
+*.sqlite  
+data-and-logs/  
+.scrapy/  
+
+# OS  
+.DS_Store  
+Thumbs.db  
+
 
 # Spyder project settings
 .spyderproject

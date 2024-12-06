@@ -1,0 +1,164 @@
+<!-- static/index.html -->  
+<!DOCTYPE html>  
+<html>  
+<head>  
+    <title>Resource Grep</title>  
+    <style>  
+        body {  
+            font-family: Arial, sans-serif;  
+            max-width: 800px;  
+            margin: 0 auto;  
+            padding: 20px;  
+        }  
+        .search-container {  
+            margin: 20px 0;  
+        }  
+        #searchInput {  
+            width: 70%;  
+            padding: 10px;  
+        }  
+        #limitInput {  
+            width: 100px;  
+            padding: 10px;  
+        }  
+        button {  
+            padding: 10px 20px;  
+            background-color: #4CAF50;  
+            color: white;  
+            border: none;  
+            cursor: pointer;  
+        }  
+        button:disabled {  
+            background-color: #cccccc;  
+            cursor: not-allowed;  
+        }  
+        #results {  
+            margin-top: 20px;  
+        }  
+        .result-item {  
+            margin: 10px 0;  
+            padding: 10px;  
+            border: 1px solid #ddd;  
+        }  
+        .status {  
+            color: #666;  
+            font-style: italic;  
+            margin: 10px 0;  
+        }  
+        .error {  
+            color: #ff0000;  
+        }  
+    </style>  
+</head>  
+<body>  
+    <h1>Resource Grep</h1>  
+    <div class="search-container">  
+        <input type="text" id="searchInput" placeholder="Enter search term...">  
+        <input type="number" id="limitInput" placeholder="Limit (optional)">  
+        <button id="searchButton" onclick="startSearch()">Search</button>  
+    </div>  
+    <div class="status" id="status"></div>  
+    <div id="results"></div>  
+
+    <script>  
+        let ws = null;  
+        const searchButton = document.getElementById('searchButton');  
+        const statusDiv = document.getElementById('status');  
+        const resultsDiv = document.getElementById('results');  
+
+        function updateStatus(message, isError = false) {  
+            statusDiv.textContent = message;  
+            statusDiv.className = isError ? 'status error' : 'status';  
+        }  
+
+        function startSearch() {  
+            const searchTerm = document.getElementById('searchInput').value;  
+            const limit = document.getElementById('limitInput').value;  
+
+            if (!searchTerm) {  
+                updateStatus('Please enter a search term', true);  
+                return;  
+            }  
+
+            // Disable search button  
+            searchButton.disabled = true;  
+
+            // Clear previous results  
+            resultsDiv.innerHTML = '';  
+            updateStatus('Connecting...');  
+
+            // Close existing WebSocket if any  
+            if (ws) {  
+                ws.close();  
+            }  
+
+            // Create new WebSocket connection  
+            try {  
+                ws = new WebSocket(`ws://${window.location.host}/ws/search`);  
+            } catch (error) {  
+                updateStatus(`WebSocket connection error: ${error.message}`, true);  
+                searchButton.disabled = false;  
+                return;  
+            }  
+
+            ws.onopen = () => {  
+                updateStatus('Connected. Starting search...');  
+                ws.send(JSON.stringify({  
+                    query: searchTerm,  
+                    limit: limit ? parseInt(limit) : null  
+                }));  
+            };  
+
+            ws.onmessage = (event) => {  
+                const data = JSON.parse(event.data);  
+
+                if (data.status === 'error') {  
+                    updateStatus(`Error: ${data.message}`, true);  
+                    searchButton.disabled = false;  
+                    return;  
+                }  
+
+                if (data.status === 'started') {  
+                    updateStatus(data.message);  
+                    return;  
+                }  
+
+                if (data.data && data.data.length > 0) {  
+                    data.data.forEach(result => {  
+                        const resultElement = document.createElement('div');  
+                        resultElement.className = 'result-item';  
+                        resultElement.innerHTML = `  
+                            <h3><a href="${result.url}" target="_blank">${result.title || 'Untitled'}</a></h3>  
+                            <p>${result.snippet || result.description || 'No description available'}</p>  
+                            <small>Source: ${result.domain || 'Unknown'} | Type: ${result.resource_type || 'Unknown'}</small>  
+                        `;  
+                        resultsDiv.appendChild(resultElement);  
+                    });  
+                }  
+
+                if (data.finished) {  
+                    updateStatus('Search completed');  
+                    searchButton.disabled = false;  
+                }  
+            };  
+
+            ws.onclose = () => {  
+                updateStatus('Connection closed');  
+                searchButton.disabled = false;  
+            };  
+
+            ws.onerror = (error) => {  
+                updateStatus(`WebSocket error: ${error.message}`, true);  
+                searchButton.disabled = false;  
+            };  
+        }  
+
+        // Clean up WebSocket on page unload  
+        window.onbeforeunload = () => {  
+            if (ws) {  
+                ws.close();  
+            }  
+        };  
+    </script>  
+</body>  
+</html>  
