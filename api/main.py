@@ -1,230 +1,118 @@
-# api/main.py  
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect  
-from fastapi.staticfiles import StaticFiles  
-from fastapi.responses import FileResponse  
-from elasticsearch import Elasticsearch  
-from search.index import SearchIndex  
-import json  
-import logging  
-import redis  
-from datetime import datetime  
-from fastapi.middleware.cors import CORSMiddleware  
-from typing import List, Dict, Any  
+from fastapi import FastAPI, Query, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import sys
+import os
+import time
+import requests
+from requests.exceptions import ConnectionError
+import logging
 
-# Configure logging  
-logging.basicConfig(level=logging.INFO)  
-logger = logging.getLogger(__name__)  
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
-app = FastAPI()
+# Add project root to path
+sys.path.append('/app')
 
-# Add this to your api/main.py after FastAPI initialization  
-# Replace the startup_event function with this:  
-@app.on_event("startup")  
-async def startup_event():  
-    try:  
-        # Initialize Elasticsearch  
-        es_client = Elasticsearch(['http://localhost:9200'])  
+# Wait for Elasticsearch to be ready
+def wait_for_elasticsearch(host='elasticsearch', port=9200, max_retries=30, delay=2):
+    """Wait for Elasticsearch to become available"""
+    url = f"http://{host}:{port}"
+    logger.info(f"Waiting for Elasticsearch at {url}")
+    
+    for i in range(max_retries):
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                logger.info(f"Elasticsearch is ready at {url}")
+                return True
+        except ConnectionError:
+            pass
+        
+        logger.info(f"Elasticsearch not ready yet. Retrying in {delay} seconds... ({i+1}/{max_retries})")
+        time.sleep(delay)
+    
+    logger.error(f"Could not connect to Elasticsearch after {max_retries} attempts")
+    return False
 
-        # Check if index exists  
-        if not es_client.indices.exists(index='websearch'):  
-            # Create index with mappings  
-            mappings = {  
-                "mappings": {  
-                    "properties": {  
-                        "url": {"type": "keyword"},  
-                        "title": {"type": "text"},  
-                        "content": {"type": "text"},  
-                        "code_snippets": {"type": "text"},  
-                        "domain": {"type": "keyword"},  
-                        "resource_type": {"type": "keyword"},  
-                        "timestamp": {"type": "date"},  
-                        "description": {"type": "text"}  
-                    }  
-                }  
-            }  
-            es_client.indices.create(index='websearch', body=mappings)  
-            logger.info("Created Elasticsearch index 'websearch'")  
+# Wait for Elasticsearch before importing modules that depend on it
+es_host = os.environ.get('ELASTICSEARCH_HOST', 'elasticsearch')
+es_port = int(os.environ.get('ELASTICSEARCH_PORT', 9200))
+wait_for_elasticsearch(es_host, es_port)
 
-        # Add test documents  
-        test_docs = [  
-            {  
-                "url": "http://test.com/flask",  
-                "title": "Flask Web Framework",  
-                "content": "Flask is a lightweight WSGI web application framework in Python. It is designed to make getting started quick and easy, with the ability to scale up to complex applications.",  
-                "description": "Python web framework for building web applications",  
-                "domain": "test.com",  
-                "resource_type": "framework",  
-                "timestamp": datetime.now().isoformat()  
-            },  
-            {  
-                "url": "http://test.com/django",  
-                "title": "Django Web Framework",  
-                "content": "Django is a high-level Python Web framework that encourages rapid development and clean, pragmatic design.",  
-                "description": "Full-featured Python web framework",  
-                "domain": "test.com",  
-                "resource_type": "framework",  
-                "timestamp": datetime.now().isoformat()  
-            }  
-        ]  
+# Now import modules that depend on Elasticsearch
+from search.index import ResourceSearch
+from crawler.run_crawler import start_crawler
 
-        for doc in test_docs:  
-            try:  
-                es_client.index(index='websearch', id=doc['url'], body=doc)  
-                logger.info(f"Added test document: {doc['title']}")  
-            except Exception as e:  
-                logger.error(f"Error adding test document: {str(e)}")  
+# Request models
+class CrawlerStartRequest(BaseModel):
+    urls: list[str] = []
 
-        # Log index status  
-        stats = es_client.indices.stats(index='websearch')  
-        doc_count = stats['indices']['websearch']['total']['docs']['count']  
-        logger.info(f"Elasticsearch index 'websearch' contains {doc_count} documents")  
+app = FastAPI(title="Resource Grep API")
 
-    except Exception as e:  
-        logger.error(f"Elasticsearch initialization error: {str(e)}")  
-        raise  
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # For development; restrict in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Initialize services  
-try:  
-    redis_client = redis.Redis(host='localhost', port=6379, db=0)  
-    es_client = Elasticsearch(['http://localhost:9200'])  
-    search_index = SearchIndex()  
+search_engine = ResourceSearch(es_host=es_host, es_port=es_port)
 
-    # Test connections  
-    redis_client.ping()  
-    es_client.info()  
-    logger.info("Successfully connected to Redis and Elasticsearch")  
-except Exception as e:  
-    logger.error(f"Failed to initialize services: {str(e)}")  
-    raise  
+@app.get("/search")
+async def search(
+    q: str = Query(..., description="Search query"),
+    type: str = Query(None, description="Filter by resource type"),
+    language: str = Query(None, description="Filter by programming language"),
+    page: int = Query(0, ge=0, description="Page number (0-based)"),
+    size: int = Query(10, ge=1, le=50, description="Results per page")
+):
+    """
+    Search for resources with instant results
+    """
+    filters = {}
+    if type:
+        filters["type"] = type
+    if language:
+        filters["language"] = language
+        
+    try:
+        results = search_engine.instant_search(q, filters, page, size)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Add CORS middleware  
-app.add_middleware(  
-    CORSMiddleware,  
-    allow_origins=["*"],  
-    allow_credentials=True,  
-    allow_methods=["*"],  
-    allow_headers=["*"],  
-)  
+@app.post("/crawler/start")
+async def start_crawling(request: CrawlerStartRequest):
+    """
+    Start the crawler with optional seed URLs
+    """
+    try:
+        job_id = start_crawler(request.urls)
+        return {"status": "started", "job_id": job_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Mount static files  
-app.mount("/static", StaticFiles(directory="static"), name="static")  
-
-class ConnectionManager:  
-    def __init__(self):  
-        self.active_connections: List[WebSocket] = []  
-        self.redis_client = redis_client  
-
-    async def connect(self, websocket: WebSocket):  
-        try:  
-            await websocket.accept()  
-            self.active_connections.append(websocket)  
-            logger.info("New WebSocket connection established")  
-        except Exception as e:  
-            logger.error(f"Error accepting WebSocket connection: {str(e)}")  
-            raise  
-
-    def disconnect(self, websocket: WebSocket):  
-        try:  
-            self.active_connections.remove(websocket)  
-            logger.info("WebSocket connection closed")  
-        except ValueError:  
-            pass  
-
-    async def send_message(self, message: str, websocket: WebSocket):  
-        try:  
-            await websocket.send_text(message)  
-        except Exception as e:  
-            logger.error(f"Error sending message: {str(e)}")  
-            self.disconnect(websocket)  
-
-manager = ConnectionManager()  
-
-@app.get("/")  
-async def read_root():  
-    return FileResponse("static/index.html")  
-
-# Replace the websocket_endpoint function with this:  
-@app.websocket("/ws/search")  
-async def websocket_endpoint(websocket: WebSocket):  
-    await manager.connect(websocket)  
-    try:  
-        while True:  
-            try:  
-                data = await websocket.receive_text()  
-                logger.info(f"Received WebSocket data: {data}")  
-
-                search_data = json.loads(data)  
-                query = search_data['query']  
-                limit = search_data.get('limit')  
-
-                logger.info(f"Processing search query: {query} with limit: {limit}")  
-
-                await websocket.send_json({  
-                    "status": "started",  
-                    "message": f"Starting search for: {query}"  
-                })  
-
-                search_index = SearchIndex()  
-                result_count = 0  
-
-                try:  
-                    async for results in search_index.search_stream(query):  
-                        if results:  
-                            result_count += len(results)  
-                            await websocket.send_json({  
-                                "status": "success",  
-                                "data": results,  
-                                "finished": False  
-                            })  
-
-                    # Send completion message  
-                    await websocket.send_json({  
-                        "status": "success",  
-                        "message": f"Found {result_count} results",  
-                        "finished": True  
-                    })  
-
-                except Exception as e:  
-                    logger.error(f"Search error: {str(e)}")  
-                    await websocket.send_json({  
-                        "status": "error",  
-                        "message": f"Search error: {str(e)}"  
-                    })  
-
-            except WebSocketDisconnect:  
-                logger.info("WebSocket disconnected")  
-                manager.disconnect(websocket)  
-                break  
-            except Exception as e:  
-                logger.error(f"Error processing message: {str(e)}")  
-                await websocket.send_json({  
-                    "status": "error",  
-                    "message": str(e)  
-                })  
-
-    except Exception as e:  
-        logger.error(f"WebSocket error: {str(e)}")  
-        manager.disconnect(websocket)  
-
-@app.get("/health")  
-async def health_check():  
-    """Health check endpoint with service status"""  
-    health_status = {  
-        "status": "healthy",  
-        "services": {  
-            "redis": "connected" if redis_client.ping() else "disconnected",  
-            "elasticsearch": "connected" if es_client.ping() else "disconnected"  
-        }  
-    }  
-    return health_status  
-
-# Cleanup on shutdown  
-@app.on_event("shutdown")  
-async def shutdown_event():  
-    """Cleanup connections on shutdown"""  
-    try:  
-        redis_client.close()  
-        es_client.close()  
-        logger.info("Cleaned up connections")  
-    except Exception as e:  
-        logger.error(f"Error during cleanup: {str(e)}")  
+@app.get("/status")
+async def get_status():
+    """
+    Get system status
+    """
+    try:
+        # Get basic stats from Elasticsearch
+        stats = search_engine.es.indices.stats(index="resources")
+        return {
+            "indexed_resources": stats["indices"]["resources"]["total"]["docs"]["count"],
+            "index_size": stats["indices"]["resources"]["total"]["store"]["size_in_bytes"],
+            "status": "operational"
+        }
+    except Exception as e:
+        return {
+            "indexed_resources": 0,
+            "index_size": 0,
+            "status": "initializing",
+            "message": str(e)
+        }

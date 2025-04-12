@@ -1,9 +1,18 @@
-# crawler/crawler.py  
-from scrapy.crawler import CrawlerProcess  
-from scrapy.utils.project import get_project_settings  
-from resource_crawler.spiders.resource_spider import ResourceSpider  
-import sys  
+# crawler/run_crawler.py
+"""
+Standalone crawler runner script.
+
+This script runs the ResourceSpider in standalone mode.
+For distributed crawling, see the coordinator service instead.
+"""  
+import os
+import sys
 import logging  
+import uuid
+import subprocess
+from scrapy.utils.project import get_project_settings  
+from scrapy.utils.log import configure_logging
+from resource_crawler.spiders.resource_spider import ResourceSpider  
 
 # Configure logging  
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")  
@@ -18,10 +27,27 @@ def run_crawler():
     search_query = sys.argv[1]  
     logger.info(f"Starting crawler with search query: {search_query}")  
 
-    # Initialize Scrapy process  
-    process = CrawlerProcess(get_project_settings())  
-    process.crawl(ResourceSpider, search_query=search_query)  
-    process.start()  
+    # Run scrapy crawl command
+    subprocess.Popen([
+        'scrapy', 'crawl',
+        'resource_spider',
+        '-a', f'search_query={search_query}'
+    ])
+
+# Function to be called from the API
+def start_crawler(seed_urls=None):
+    # Generate a unique job ID
+    job_id = str(uuid.uuid4())
+    
+    # Create command
+    cmd = ['scrapy', 'crawl', 'resource_spider', '-a', 'search_query=python']
+    if seed_urls:
+        cmd.extend(['-a', f'start_urls={",".join(seed_urls)}'])
+    
+    # Run scrapy crawl command
+    subprocess.Popen(cmd)
+    
+    return job_id
 
 if __name__ == "__main__":  
     run_crawler()  

@@ -1,0 +1,137 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  
+  processor:
+    build:
+      context: .
+      dockerfile: processor/Dockerfile
+    volumes:
+      - ./processor:/app/processor
+      - ./data:/app/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - PYTHONUNBUFFERED=1
+  
+  crawler:
+    build:
+      context: .
+      dockerfile: crawler/Dockerfile
+    volumes:
+      - ./crawler:/app/crawler
+      - ./data:/app/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONUNBUFFERED=1
+  
+  coordinator:
+    build:
+      context: .
+      dockerfile: coordinator/Dockerfile
+    volumes:
+      - ./coordinator:/app/coordinator
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CRAWLER_WORKERS=3
+      - PYTHONUNBUFFERED=1
+  
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    volumes:
+      - ./api:/app/api
+      - ./search:/app/search
+      - ./data:/app/data
+      - ./crawler:/app/crawler
+    ports:
+      - "8000:8000"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      processor:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONUNBUFFERED=1
+  
+  streaming_api:
+    build:
+      context: .
+      dockerfile: streaming_api/Dockerfile
+    volumes:
+      - ./streaming_api:/app/streaming_api
+    ports:
+      - "8001:8001"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONUNBUFFERED=1
+  
+  frontend:
+    image: nginx:alpine
+    volumes:
+      - ./static:/usr/share/nginx/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+      - streaming_api
+
+volumes:
+  esdata:
+  redisdata:

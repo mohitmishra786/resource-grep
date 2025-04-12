@@ -1,0 +1,189 @@
+Compose can now delegate builds to bake for better performance.
+ To do so, set COMPOSE_BAKE=true.
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [processor internal] load build definition from Dockerfile
+#1 transferring dockerfile: 301B done
+#1 DONE 0.0s
+
+#2 [crawler internal] load build definition from Dockerfile
+#2 transferring dockerfile: 319B done
+#2 DONE 0.0s
+
+#3 [processor internal] load metadata for docker.io/library/python:3.10-slim
+#3 DONE 0.9s
+
+#4 [processor internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [crawler internal] load .dockerignore
+#5 transferring context: 2B done
+#5 DONE 0.0s
+
+#6 [processor 1/4] FROM docker.io/library/python:3.10-slim@sha256:65c843653048a3ba22c8d5083a022f44aef774974f0f7f70cbf8cee4e931ac96
+#6 resolve docker.io/library/python:3.10-slim@sha256:65c843653048a3ba22c8d5083a022f44aef774974f0f7f70cbf8cee4e931ac96 done
+#6 DONE 0.0s
+
+#7 [processor internal] load build context
+#7 transferring context: 75B done
+#7 DONE 0.0s
+
+#8 [crawler internal] load build context
+#8 transferring context: 75B done
+#8 DONE 0.0s
+
+#9 [processor 3/4] COPY requirements.txt .
+#9 CACHED
+
+#10 [processor 2/4] WORKDIR /app
+#10 CACHED
+
+#11 [crawler 4/4] RUN pip install --no-cache-dir -r requirements.txt
+#11 CACHED
+
+#12 [crawler] exporting to image
+#12 exporting layers done
+#12 exporting manifest sha256:0dd03e903a3c1aae2c1063bb27582926900a90a39500065c71efe0bae5969e90 done
+#12 exporting config sha256:f5e1a17ca8b5770959e56ae1fdc8916f31b91fe5edac03f37ffb0a8b17a187e4 done
+#12 exporting attestation manifest sha256:9f8a9434d6928be3e49b84b82bb24aa290b73a0f334c9e03ef5a4b06433d8d67 done
+#12 exporting manifest list sha256:8633f0c531b56e34031f5b73038d16f0f791bca9385c0b7e93befbc5900675e6 done
+#12 naming to docker.io/library/resource-grep-crawler:latest done
+#12 unpacking to docker.io/library/resource-grep-crawler:latest done
+#12 DONE 0.0s
+
+#13 [processor] exporting to image
+#13 exporting layers done
+#13 exporting manifest sha256:48ac04a8adc7f56ccf2931b420365ea681f69f4d9c081b8ec6732568ca9cf05d done
+#13 exporting config sha256:db77529993303ce1e852d6418a6975480cee2cad2aea68a2e48fb9d54dce9aeb done
+#13 exporting attestation manifest sha256:0b9fe1290345e0e6377b4b733122c95b4a151270bc3cc1565eb1067a879b1d37 done
+#13 exporting manifest list sha256:9d656674a0963455e99786f8c95d0589fe13fcebe5fb217d80c07dd1cad6d163 done
+#13 naming to docker.io/library/resource-grep-processor:latest done
+#13 unpacking to docker.io/library/resource-grep-processor:latest done
+#13 DONE 0.0s
+
+#14 [crawler] resolving provenance for metadata file
+#14 DONE 0.0s
+
+#15 [processor] resolving provenance for metadata file
+#15 DONE 0.0s
+
+#16 [api internal] load build definition from Dockerfile
+#16 transferring dockerfile: 325B done
+#16 DONE 0.0s
+
+#3 [api internal] load metadata for docker.io/library/python:3.10-slim
+#3 DONE 1.3s
+
+#17 [api internal] load .dockerignore
+#17 transferring context: 2B done
+#17 DONE 0.0s
+
+#6 [api 1/4] FROM docker.io/library/python:3.10-slim@sha256:65c843653048a3ba22c8d5083a022f44aef774974f0f7f70cbf8cee4e931ac96
+#6 resolve docker.io/library/python:3.10-slim@sha256:65c843653048a3ba22c8d5083a022f44aef774974f0f7f70cbf8cee4e931ac96 done
+#6 DONE 0.0s
+
+#18 [api internal] load build context
+#18 transferring context: 75B done
+#18 DONE 0.0s
+
+#19 [api 3/4] COPY requirements.txt .
+#19 CACHED
+
+#10 [api 2/4] WORKDIR /app
+#10 CACHED
+
+#20 [api 4/4] RUN pip install --no-cache-dir -r requirements.txt
+#20 CACHED
+
+#21 [api] exporting to image
+#21 exporting layers done
+#21 exporting manifest sha256:57a0beb608203418b2df37ef61a5b4b5ca60bbddd704d438cf27999e390fe8e7 done
+#21 exporting config sha256:44f56cde513db934ff7ab958617e4408825cfdd6b1a156d8b2f3725fc16ba825 done
+#21 exporting attestation manifest sha256:f8e139c9cd5cca85603baa4263f7255c4e28e8d936555039fc86c1c7e824955a done
+#21 exporting manifest list sha256:26fd93fe524f64f83dfd234af945cf90d37a0cb6bd760be1dea5745da9c23dbe done
+#21 naming to docker.io/library/resource-grep-api:latest done
+#21 unpacking to docker.io/library/resource-grep-api:latest done
+#21 DONE 0.0s
+
+#22 [api] resolving provenance for metadata file
+#22 DONE 0.0s
+Attaching to api-1, crawler-1, elasticsearch-1, frontend-1, processor-1
+[Kprocessor-1 exited with code 1
+frontend-1       | /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+frontend-1       | /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+frontend-1       | /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+frontend-1       | 10-listen-on-ipv6-by-default.sh: info: IPv6 listen already enabled
+frontend-1       | /docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+frontend-1       | /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+frontend-1       | /docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+frontend-1       | /docker-entrypoint.sh: Configuration complete; ready for start up
+[Kcrawler-1 exited with code 1
+[Kapi-1 exited with code 1
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:39,340Z", "level": "INFO", "component": "o.e.n.Node", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "version[7.17.0], pid[7], build[default/docker/bee86328705acaa9a6daede7140defd4d9ec56bd/2022-01-28T08:36:04.875279988Z], OS[Linux/6.10.14-linuxkit/aarch64], JVM[Eclipse Adoptium/OpenJDK 64-Bit Server VM/17.0.1/17.0.1+12]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:39,341Z", "level": "INFO", "component": "o.e.n.Node", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "JVM home [/usr/share/elasticsearch/jdk], using bundled JDK [true]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:39,342Z", "level": "INFO", "component": "o.e.n.Node", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "JVM arguments [-Xshare:auto, -Des.networkaddress.cache.ttl=60, -Des.networkaddress.cache.negative.ttl=10, -XX:+AlwaysPreTouch, -Xss1m, -Djava.awt.headless=true, -Dfile.encoding=UTF-8, -Djna.nosys=true, -XX:-OmitStackTraceInFastThrow, -XX:+ShowCodeDetailsInExceptionMessages, -Dio.netty.noUnsafe=true, -Dio.netty.noKeySetOptimization=true, -Dio.netty.recycler.maxCapacityPerThread=0, -Dio.netty.allocator.numDirectArenas=0, -Dlog4j.shutdownHookEnabled=false, -Dlog4j2.disable.jmx=true, -Dlog4j2.formatMsgNoLookups=true, -Djava.locale.providers=SPI,COMPAT, --add-opens=java.base/java.io=ALL-UNNAMED, -XX:+UseG1GC, -Djava.io.tmpdir=/tmp/elasticsearch-16032677443287021524, -XX:+HeapDumpOnOutOfMemoryError, -XX:+ExitOnOutOfMemoryError, -XX:HeapDumpPath=data, -XX:ErrorFile=logs/hs_err_pid%p.log, -Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m, -Des.cgroups.hierarchy.override=/, -Xms512m, -Xmx512m, -XX:MaxDirectMemorySize=268435456, -XX:G1HeapRegionSize=4m, -XX:InitiatingHeapOccupancyPercent=30, -XX:G1ReservePercent=15, -Des.path.home=/usr/share/elasticsearch, -Des.path.conf=/usr/share/elasticsearch/config, -Des.distribution.flavor=default, -Des.distribution.type=docker, -Des.bundled_jdk=true]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,021Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [aggs-matrix-stats]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,021Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [analysis-common]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,021Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [constant-keyword]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,021Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [frozen-indices]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,022Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [ingest-common]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,022Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [ingest-geoip]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,022Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [ingest-user-agent]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,022Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [kibana]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,022Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [lang-expression]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,022Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [lang-mustache]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,022Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [lang-painless]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,022Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [legacy-geo]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,022Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [mapper-extras]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,022Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [mapper-version]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,022Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [parent-join]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [percolator]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [rank-eval]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [reindex]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [repositories-metering-api]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [repository-encrypted]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [repository-url]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [runtime-fields-common]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [search-business-rules]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [searchable-snapshots]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [snapshot-repo-test-kit]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [spatial]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,023Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [transform]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [transport-netty4]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [unsigned-long]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [vector-tile]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [vectors]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [wildcard]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-aggregate-metric]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-analytics]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-async]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-async-search]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-autoscaling]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-ccr]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-core]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-data-streams]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,024Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-deprecation]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-enrich]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-eql]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-fleet]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-graph]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-identity-provider]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-ilm]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-logstash]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-ml]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-monitoring]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-ql]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-rollup]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-security]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-shutdown]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,025Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-sql]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,026Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-stack]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,026Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-text-structure]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,026Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-voting-only-node]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,026Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "loaded module [x-pack-watcher]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,026Z", "level": "INFO", "component": "o.e.p.PluginsService", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "no plugins loaded" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,036Z", "level": "INFO", "component": "o.e.e.NodeEnvironment", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "using [1] data paths, mounts [[/usr/share/elasticsearch/data (/dev/vda1)]], net usable_space [952.2gb], net total_space [1006.8gb], types [ext4]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,037Z", "level": "INFO", "component": "o.e.e.NodeEnvironment", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "heap size [512mb], compressed ordinary object pointers [true]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:40,056Z", "level": "INFO", "component": "o.e.n.Node", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "node name [0abdf8177a98], node ID [u3V5FDRHQyWcuiur7zTc5A], cluster name [docker-cluster], roles [transform, data_frozen, master, remote_cluster_client, data, ml, data_content, data_hot, data_warm, data_cold, ingest]" }
+elasticsearch-1  | {"type": "server", "timestamp": "2025-04-12T19:49:41,513Z", "level": "INFO", "component": "o.e.x.m.p.l.CppLogMessageHandler", "cluster.name": "docker-cluster", "node.name": "0abdf8177a98", "message": "[controller/221] [Main.cc@122] controller (64 bit): Version 7.17.0 (Build 447aed7cba032c) Copyright (c) 2022 Elasticsearch BV" }
