@@ -1,96 +1,151 @@
-# processor/content_processor.py  
-import redis  
-import json  
-from elasticsearch import Elasticsearch  
-import time  
-from concurrent.futures import ThreadPoolExecutor  
-import logging  
+import re
+import json
+import hashlib
+from datetime import datetime
+from elasticsearch import Elasticsearch
 
-# Configure logging  
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")  
-logger = logging.getLogger(__name__)  
-
-class ContentProcessor:  
-    def __init__(self):  
-        try:  
-            # Initialize Redis and Elasticsearch clients  
-            self.redis_client = redis.Redis(host='localhost', port=6379, db=0)  
-            self.es = Elasticsearch(['http://localhost:9200'])  
-
-            # Test connections  
-            if not self.redis_client.ping():  
-                raise Exception("Failed to connect to Redis")  
-            if not self.es.ping():  
-                raise Exception("Failed to connect to Elasticsearch")  
-
-            logger.info("Successfully connected to Redis and Elasticsearch")  
-        except Exception as e:  
-            logger.error(f"Initialization error: {e}")  
-            raise  
-
-    def process_content(self, content):  
-        """Process and index content from Redis into Elasticsearch."""  
-        try:  
-            # Parse content from Redis  
-            data = json.loads(content)  
-            logger.info(f"Processing content from URL: {data.get('url')}")  
-
-            # Prepare data for Elasticsearch  
-            processed_data = {  
-                'url': data.get('url'),  
-                'title': data.get('title', 'Untitled'),  
-                'content': data.get('text', ''),  
-                'code_snippets': data.get('code_blocks', []),  
-                'domain': data.get('domain', 'unknown'),  
-                'processed_at': time.time(),  
-                'keywords': self._extract_keywords(data.get('text', '')),  
-                'resource_type': self._determine_resource_type(data)  
-            }  
-
-            # Index data into Elasticsearch  
-            self.es.index(index='websearch', body=processed_data, id=processed_data['url'])  
-            logger.info(f"Indexed content into Elasticsearch: {processed_data['url']}")  
-
-        except Exception as e:  
-            logger.error(f"Error processing content: {e}")  
-
-    def _extract_keywords(self, text):  
-        """Extract keywords from text (basic implementation)."""  
-        if not text:  
-            return []  
-        words = text.lower().split()  
-        return list(set(words))  # Return unique words as keywords  
-
-    def _determine_resource_type(self, data):  
-        """Determine the resource type based on the domain."""  
-        domain = data.get('domain', '')  
-        if 'github.com' in domain:  
-            return 'repository'  
-        elif 'stackoverflow.com' in domain:  
-            return 'qa'  
-        elif 'medium.com' in domain:  
-            return 'article'  
-        elif 'dev.to' in domain:  
-            return 'article'  
-        return 'general'  
-
-    def start_processing(self):  
-        """Start consuming data from Redis and processing it."""  
-        logger.info("Starting content processor...")  
-        with ThreadPoolExecutor(max_workers=4) as executor:  
-            while True:  
-                try:  
-                    # Fetch data from Redis queue  
-                    content = self.redis_client.brpop('resource_queue', timeout=5)  
-                    if content:  
-                        logger.info("Fetched content from Redis queue")  
-                        executor.submit(self.process_content, content[1])  
-                    else:  
-                        logger.info("No data in Redis queue. Waiting...")  
-                except Exception as e:  
-                    logger.error(f"Error while consuming from Redis: {e}")  
-                    time.sleep(5)  # Wait before retrying  
-
-if __name__ == "__main__":  
-    processor = ContentProcessor()  
-    processor.start_processing()  
+class ContentProcessor:
+    def __init__(self, es_host='elasticsearch', es_port=9200):
+        # Updated initialization for newer Elasticsearch client versions
+        self.es = Elasticsearch([f'http://{es_host}:{es_port}'])
+        self._ensure_index()
+    
+    def _ensure_index(self):
+        """Create the Elasticsearch index if it doesn't exist"""
+        if not self.es.indices.exists(index='resources'):
+            self.es.indices.create(
+                index='resources',
+                body={
+                    "settings": {
+                        "analysis": {
+                            "analyzer": {
+                                "code_analyzer": {
+                                    "type": "custom",
+                                    "tokenizer": "standard",
+                                    "filter": ["lowercase"]
+                                }
+                            }
+                        }
+                    },
+                    "mappings": {
+                        "properties": {
+                            "url": {"type": "keyword"},
+                            "title": {"type": "text"},
+                            "description": {"type": "text"},
+                            "content": {"type": "text"},
+                            "code_snippets": {
+                                "type": "text",
+                                "analyzer": "code_analyzer"
+                            },
+                            "tags": {"type": "keyword"},
+                            "type": {"type": "keyword"},
+                            "language": {"type": "keyword"},
+                            "quality_score": {"type": "float"},
+                            "indexed_date": {"type": "date"}
+                        }
+                    }
+                }
+            )
+    
+    def process_resource(self, resource):
+        """Process and enrich a resource before indexing"""
+        # Generate unique ID for deduplication
+        resource_id = hashlib.md5(resource['url'].encode()).hexdigest()
+        
+        # Clean content
+        if 'content' in resource:
+            resource['content'] = self._clean_text(resource['content'])
+        
+        # Detect programming language
+        resource['language'] = self._detect_language(resource)
+        
+        # Calculate quality score
+        resource['quality_score'] = self._calculate_quality(resource)
+        
+        # Add timestamp
+        resource['indexed_date'] = datetime.now().isoformat()
+        
+        # Index the resource
+        self.es.index(index='resources', id=resource_id, body=resource)
+        
+        return resource_id
+    
+    def _clean_text(self, text):
+        """Clean and normalize text content"""
+        if not text:
+            return ""
+        
+        # Remove extra whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        # Remove HTML tags if any remain
+        text = re.sub(r'<[^>]+>', '', text)
+        
+        return text
+    
+    def _detect_language(self, resource):
+        """Detect the programming language of the resource"""
+        # Simple language detection based on keywords and URL
+        languages = {
+            'python': ['python', 'django', 'flask', 'numpy', 'pandas'],
+            'javascript': ['javascript', 'js', 'node', 'react', 'vue', 'angular'],
+            'java': ['java', 'spring', 'maven', 'gradle'],
+            'go': ['golang', 'go '],
+            'rust': ['rust', 'cargo'],
+            'php': ['php', 'laravel', 'symfony'],
+            'ruby': ['ruby', 'rails'],
+            'c#': ['c#', 'csharp', '.net', 'dotnet'],
+            'c++': ['c++', 'cpp']
+        }
+        
+        # Check URL, title, and content
+        text_to_check = ' '.join([
+            resource.get('url', ''),
+            resource.get('title', ''),
+            resource.get('description', ''),
+            ' '.join(resource.get('tags', '').split(',') if resource.get('tags') else [])
+        ]).lower()
+        
+        for lang, keywords in languages.items():
+            if any(kw in text_to_check for kw in keywords):
+                return lang
+        
+        # Check code snippets for language indicators
+        for snippet in resource.get('code_snippets', []):
+            for lang, keywords in languages.items():
+                if any(kw in snippet.lower() for kw in keywords):
+                    return lang
+        
+        return 'unknown'
+    
+    def _calculate_quality(self, resource):
+        """Calculate a quality score for the resource"""
+        score = 0
+        
+        # Score based on content length
+        if 'content' in resource and resource['content']:
+            content_length = len(resource['content'])
+            if content_length > 5000:
+                score += 3
+            elif content_length > 1000:
+                score += 2
+            elif content_length > 500:
+                score += 1
+        
+        # Score based on code snippets
+        if 'code_snippets' in resource and resource['code_snippets']:
+            score += min(len(resource['code_snippets']), 3)
+        
+        # Score based on description quality
+        if 'description' in resource and resource['description']:
+            if len(resource['description']) > 100:
+                score += 2
+            elif len(resource['description']) > 50:
+                score += 1
+        
+        # Score based on source reputation (simple example)
+        reputation_sites = ['github.com', 'stackoverflow.com', 'docs.python.org']
+        if any(site in resource.get('url', '') for site in reputation_sites):
+            score += 3
+        
+        return min(score / 10, 1.0)  # Normalize to 0-1

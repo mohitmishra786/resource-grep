@@ -1,185 +1,182 @@
-# crawler/resource_crawler/spiders/resource_spider.py  
-import scrapy  
-from scrapy.spiders import CrawlSpider, Rule  
-from scrapy.linkextractors import LinkExtractor  
-from urllib.parse import urlparse, quote  
-import json  
-import redis  
-from datetime import datetime  
-import logging  
-import re  
+"""
+ResourceSpider - Standalone Spider Implementation
 
-# Configure logging  
-logging.basicConfig(  
-    filename='crawler.log',  
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  
-    level=logging.INFO  
-)  
+This spider is used by the standalone crawler service (run_crawler.py).
+It's configured in the crawler/Dockerfile and runs as a single instance.
 
-class ResourceSpider(CrawlSpider):  
-    name = 'resource_spider'  
+For distributed crawling, see distributed_spider.py instead.
+"""
 
-    # These will be overridden in __init__ with search query  
-    start_urls = []  
+import scrapy
+from resource_crawler.items import ResourceItem
+import re
+from urllib.parse import urlparse, urljoin
+from datetime import datetime
+import logging
+from scrapy.utils.project import get_project_settings
 
-    # Custom settings for the spider  
-    custom_settings = {  
-        'ROBOTSTXT_OBEY': False,  # Bypass robots.txt restrictions  
-        'CONCURRENT_REQUESTS': 16,  
-        'DOWNLOAD_DELAY': 1,  
-        'COOKIES_ENABLED': False,  
-        'USER_AGENT': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',  
-        'DOWNLOAD_TIMEOUT': 15,  
-        'RETRY_TIMES': 3,  
-        'DEPTH_LIMIT': 3,  
-    }  
+logger = logging.getLogger(__name__)
 
-    # Define rules for link extraction  
-    rules = (  
-        # Follow search result pages  
-        Rule(  
-            LinkExtractor(  
-                allow=(  
-                    r'/search\?',  
-                    r'/page/\d+',  
-                    r'\?page=\d+',  
-                )  
-            ),  
-            follow=True  
-        ),  
-        # Extract content from matching pages  
-        Rule(  
-            LinkExtractor(  
-                allow=(  
-                    r'github\.com/[^/]+/[^/]+$',  # GitHub repositories  
-                    r'stackoverflow\.com/questions/\d+',  # Stack Overflow questions  
-                    r'dev\.to/[^/]+/[^/]+$',  # Dev.to articles  
-                    r'medium\.com/[^/]+/[^/]+$',  # Medium articles  
-                )  
-            ),  
-            callback='parse_resource',  
-            follow=True  
-        ),  
-    )  
-
-    def __init__(self, search_query=None, *args, **kwargs):  
-        super(ResourceSpider, self).__init__(*args, **kwargs)  
-        self.redis_client = redis.Redis(host='localhost', port=6379, db=0)  
-        self.search_query = search_query  
-
-        # Encode search query for URLs  
-        encoded_query = quote(search_query) if search_query else ''  
-
-        # Define start URLs based on search query  
-        self.start_urls = [  
-            f'https://github.com/search?q={encoded_query}&type=repositories',  
-            f'https://dev.to/search?q={encoded_query}',  
-            f'https://stackoverflow.com/search?q={encoded_query}',  
-            f'https://medium.com/search?q={encoded_query}',  
-        ]  
-
-        logging.info(f"Initialized spider with search query: {search_query}")  
-        logging.info(f"Start URLs: {self.start_urls}")  
-
-    def parse_resource(self, response):  
-        """Parse different types of resources based on domain"""  
-        try:  
-            domain = urlparse(response.url).netloc  
-            content = None  
-
-            if 'github.com' in domain:  
-                content = self.parse_github(response)  
-            elif 'stackoverflow.com' in domain:  
-                content = self.parse_stackoverflow(response)  
-            elif 'dev.to' in domain:  
-                content = self.parse_devto(response)  
-            elif 'medium.com' in domain:  
-                content = self.parse_medium(response)  
-
-            if content:  
-                # Add common fields  
-                content.update({  
-                    'url': response.url,  
-                    'domain': domain,  
-                    'timestamp': datetime.now().isoformat(),  
-                    'search_query': self.search_query  
-                })  
-
-                # Store in Redis for real-time processing  
-                self.redis_client.lpush('resource_queue', json.dumps(content))  
-                logging.info(f"Successfully parsed and queued: {response.url}")  
-
-                return content  
-
-        except Exception as e:  
-            logging.error(f"Error parsing {response.url}: {str(e)}")  
-            return None  
-
-    def parse_github(self, response):  
-        """Parse GitHub repository pages"""  
-        try:  
-            return {  
-                'title': response.css('h1.d-flex::text').get('').strip(),  
-                'description': response.css('.f4.my-3::text').get('').strip(),  
-                'stars': response.css('a.social-count::text').get('').strip(),  
-                'language': response.css('span[itemprop="programmingLanguage"]::text').get(''),  
-                'readme': ' '.join(response.css('article.markdown-body ::text').getall()),  
-                'code_blocks': response.css('pre::text, code::text').getall(),  
-                'resource_type': 'github_repository'  
-            }  
-        except Exception as e:  
-            logging.error(f"Error parsing GitHub page {response.url}: {str(e)}")  
-            return None  
-
-    def parse_stackoverflow(self, response):  
-        """Parse Stack Overflow question pages"""  
-        try:  
-            return {  
-                'title': response.css('h1[itemprop="name"] a::text').get('').strip(),  
-                'question': ' '.join(response.css('div.question div.post-text ::text').getall()),  
-                'answers': [  
-                    ' '.join(answer.css('.answer-text ::text').getall())  
-                    for answer in response.css('div.answer')  
-                ],  
-                'code_blocks': response.css('pre code::text').getall(),  
-                'tags': response.css('div.post-taglist a::text').getall(),  
-                'resource_type': 'stackoverflow_qa'  
-            }  
-        except Exception as e:  
-            logging.error(f"Error parsing Stack Overflow page {response.url}: {str(e)}")  
-            return None  
-
-    def parse_devto(self, response):  
-        """Parse Dev.to article pages"""  
-        try:  
-            return {  
-                'title': response.css('h1#article-show-title::text').get('').strip(),  
-                'content': ' '.join(response.css('div#article-body ::text').getall()),  
-                'tags': response.css('div.tags a::text').getall(),  
-                'code_blocks': response.css('div.highlight ::text').getall(),  
-                'author': response.css('a.user-profile-link::text').get('').strip(),  
-                'resource_type': 'devto_article'  
-            }  
-        except Exception as e:  
-            logging.error(f"Error parsing Dev.to page {response.url}: {str(e)}")  
-            return None  
-
-    def parse_medium(self, response):  
-        """Parse Medium article pages"""  
-        try:  
-            return {  
-                'title': response.css('h1::text').get('').strip(),  
-                'content': ' '.join(response.css('article ::text').getall()),  
-                'claps': response.css('button.clap-button::text').get('0').strip(),  
-                'author': response.css('a[rel="author"]::text').get('').strip(),  
-                'tags': response.css('a.tag::text').getall(),  
-                'resource_type': 'medium_article'  
-            }  
-        except Exception as e:  
-            logging.error(f"Error parsing Medium page {response.url}: {str(e)}")  
-            return None  
-
-    def closed(self, reason):  
-        """Called when the spider is closed"""  
-        logging.info(f"Spider closed: {reason}")  
-        self.redis_client.close()  
+class ResourceSpider(scrapy.Spider):
+    name = "resource_spider"
+    
+    # Get allowed domains from settings
+    settings = get_project_settings()
+    allowed_domains = settings.get('ALLOWED_DOMAINS', [])
+    
+    # Default start URLs
+    default_start_urls = [
+        'https://github.com/topics/python',
+        'https://stackoverflow.com/questions/tagged/python',
+        'https://dev.to/t/python',
+        'https://www.reddit.com/r/Python/',
+        'https://www.geeksforgeeks.org/python-programming-language/',
+        'https://realpython.com/tutorials/all/',
+        'https://www.w3schools.com/python/',
+        'https://docs.python.org/3/tutorial/',
+        # Add React-related URLs
+        'https://reactjs.org/docs/getting-started.html',
+        'https://github.com/topics/react',
+        'https://stackoverflow.com/questions/tagged/reactjs',
+        'https://dev.to/t/react',
+        'https://www.reddit.com/r/reactjs/',
+        'https://www.w3schools.com/react/',
+        # React Hooks specifically
+        'https://reactjs.org/docs/hooks-intro.html',
+        'https://reactjs.org/docs/hooks-overview.html',
+        'https://reactjs.org/docs/hooks-state.html',
+        'https://reactjs.org/docs/hooks-effect.html',
+    ]
+    
+    def __init__(self, search_query=None, start_urls=None, *args, **kwargs):
+        super(ResourceSpider, self).__init__(*args, **kwargs)
+        self.search_query = search_query
+        
+        # Handle start URLs from command line
+        if start_urls:
+            if isinstance(start_urls, str):
+                self.start_urls = start_urls.split(',')
+            elif isinstance(start_urls, (list, tuple)):
+                self.start_urls = list(start_urls)
+            else:
+                self.start_urls = self.default_start_urls
+        else:
+            self.start_urls = self.default_start_urls
+            
+        logger.info(f"Initialized spider with search query: {search_query}")
+        logger.info(f"Starting URLs: {self.start_urls}")
+    
+    def parse(self, response):
+        # Extract links to follow
+        for link in response.css('a::attr(href)').getall():
+            if self.should_follow(link):
+                yield response.follow(link, self.parse)
+        
+        # Check if page contains valuable resources
+        if self.is_resource_page(response):
+            yield self.extract_resource(response)
+    
+    def should_follow(self, url):
+        # Define rules for which URLs to follow
+        # Avoid irrelevant pages, focus on content-rich areas
+        relevant_patterns = [
+            r'tutorial', r'guide', r'doc', r'example', r'resource', 
+            r'learn', r'library', r'framework', r'tool', r'cheatsheet'
+        ]
+        
+        # Check if URL matches any relevant pattern
+        if any(re.search(pattern, url, re.I) for pattern in relevant_patterns):
+            # Check if URL is from allowed domains
+            domain = urlparse(url).netloc
+            if any(allowed in domain for allowed in self.allowed_domains):
+                return True
+        return False
+    
+    def is_resource_page(self, response):
+        # Detect if a page contains valuable resources
+        resource_indicators = [
+            response.css('pre'), response.css('code'),
+            response.xpath('//h1[contains(text(), "Guide")]'),
+            response.xpath('//h1[contains(text(), "Tutorial")]'),
+            response.css('article'), response.css('.markdown-body')
+        ]
+        
+        return any(indicator for indicator in resource_indicators)
+    
+    def extract_resource(self, response):
+        resource = ResourceItem()
+        
+        # Extract domain to categorize content
+        domain = urlparse(response.url).netloc
+        
+        # Extract title and description
+        title = response.css('title::text').get() or response.css('h1::text').get()
+        meta_desc = response.css('meta[name="description"]::attr(content)').get()
+        description = meta_desc if meta_desc else ' '.join(response.css('p::text').getall()[:3])
+        
+        # Skip if no meaningful content
+        if not title or not description:
+            return None
+            
+        # Clean up title and description
+        title = ' '.join(title.split())
+        description = ' '.join(description.split())
+        
+        # Detect programming language
+        languages = ['python', 'javascript', 'java', 'cpp', 'c++', 'ruby', 'php', 'golang', 'rust']
+        detected_languages = [lang for lang in languages if lang.lower() in (title + ' ' + description).lower()]
+        
+        # If search query is provided, only process content related to that query
+        if self.search_query and self.search_query.lower() not in (title + ' ' + description).lower():
+            return None
+        
+        # Extract main content based on common content containers
+        content_selectors = [
+            'article', '.markdown-body', '.post-content',
+            '#content', '.content', 'main'
+        ]
+        
+        content = None
+        for selector in content_selectors:
+            content = response.css(f'{selector}::text').getall()
+            if content:
+                content = ' '.join(content)
+                break
+        
+        # Extract code snippets
+        code_snippets = []
+        for code_block in response.css('pre code::text').getall():
+            code_snippets.append(code_block)
+        
+        # Extract tags/keywords
+        tags = response.css('meta[name="keywords"]::attr(content)').get()
+        
+        # Determine resource type
+        resource_type = 'article'  # default
+        if 'tutorial' in title.lower() or 'guide' in title.lower():
+            resource_type = 'tutorial'
+        elif 'video' in title.lower() or 'youtube' in domain:
+            resource_type = 'video'
+        elif 'documentation' in title.lower() or 'docs' in domain:
+            resource_type = 'documentation'
+        elif '/github.com/' in response.url:
+            resource_type = 'repository'
+        elif any(doc in response.url for doc in ['docs', 'documentation', 'reference']):
+            resource_type = 'documentation'
+        elif any(tut in response.url for tut in ['tutorial', 'guide', 'how-to']):
+            resource_type = 'tutorial'
+        
+        # Create resource item
+        resource['url'] = response.url
+        resource['title'] = title
+        resource['description'] = description
+        resource['content'] = content
+        resource['code_snippets'] = code_snippets
+        resource['tags'] = tags
+        resource['domain'] = domain
+        resource['type'] = resource_type
+        resource['languages'] = detected_languages
+        resource['timestamp'] = datetime.now().isoformat()
+        
+        logger.info(f"Found resource: {title} ({resource_type})")
+        return resource

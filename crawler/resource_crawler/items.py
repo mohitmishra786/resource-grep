@@ -6,7 +6,16 @@
 import scrapy
 
 
-class ResourceCrawlerItem(scrapy.Item):
-    # define the fields for your item here like:
-    # name = scrapy.Field()
-    pass
+class ResourceItem(scrapy.Item):
+    # Fields used by the resource crawler
+    url = scrapy.Field()
+    title = scrapy.Field()
+    description = scrapy.Field()
+    content = scrapy.Field()
+    code_snippets = scrapy.Field()
+    tags = scrapy.Field()
+    type = scrapy.Field()
+    domain = scrapy.Field()
+    languages = scrapy.Field()
+    timestamp = scrapy.Field()
+    quality_score = scrapy.Field()

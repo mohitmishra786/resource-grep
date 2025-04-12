@@ -1,164 +1,780 @@
-<!-- static/index.html -->  
-<!DOCTYPE html>  
-<html>  
-<head>  
-    <title>Resource Grep</title>  
-    <style>  
-        body {  
-            font-family: Arial, sans-serif;  
-            max-width: 800px;  
-            margin: 0 auto;  
-            padding: 20px;  
-        }  
-        .search-container {  
-            margin: 20px 0;  
-        }  
-        #searchInput {  
-            width: 70%;  
-            padding: 10px;  
-        }  
-        #limitInput {  
-            width: 100px;  
-            padding: 10px;  
-        }  
-        button {  
-            padding: 10px 20px;  
-            background-color: #4CAF50;  
-            color: white;  
-            border: none;  
-            cursor: pointer;  
-        }  
-        button:disabled {  
-            background-color: #cccccc;  
-            cursor: not-allowed;  
-        }  
-        #results {  
-            margin-top: 20px;  
-        }  
-        .result-item {  
-            margin: 10px 0;  
-            padding: 10px;  
-            border: 1px solid #ddd;  
-        }  
-        .status {  
-            color: #666;  
-            font-style: italic;  
-            margin: 10px 0;  
-        }  
-        .error {  
-            color: #ff0000;  
-        }  
-    </style>  
-</head>  
-<body>  
-    <h1>Resource Grep</h1>  
-    <div class="search-container">  
-        <input type="text" id="searchInput" placeholder="Enter search term...">  
-        <input type="number" id="limitInput" placeholder="Limit (optional)">  
-        <button id="searchButton" onclick="startSearch()">Search</button>  
-    </div>  
-    <div class="status" id="status"></div>  
-    <div id="results"></div>  
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resource Grep - Instant Resource Search</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        .code-snippet {
+            background-color: #f6f8fa;
+            border-radius: 3px;
+            padding: 16px;
+            overflow-x: auto;
+            font-family: monospace;
+        }
+        .highlight {
+            background-color: #fffbdd;
+            font-weight: bold;
+        }
+        .skeleton {
+            animation: skeleton-loading 1s linear infinite alternate;
+        }
+        @keyframes skeleton-loading {
+            0% {
+                background-color: hsl(200, 20%, 95%);
+            }
+            100% {
+                background-color: hsl(200, 20%, 99%);
+            }
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            0% {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <header class="bg-indigo-700 text-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+            <h1 class="text-3xl font-bold">Resource Grep</h1>
+            <p class="text-indigo-200">Find the best programming resources instantly</p>
+        </div>
+    </header>
 
-    <script>  
-        let ws = null;  
-        const searchButton = document.getElementById('searchButton');  
-        const statusDiv = document.getElementById('status');  
-        const resultsDiv = document.getElementById('results');  
+    <main class="container mx-auto px-4 py-8">
+        <div class="mb-4 bg-blue-50 p-4 rounded-lg">
+            <p class="text-blue-800">
+                <strong>Note:</strong> The crawler is still collecting data. Currently, searching for "python" will show results. React-related content is being added.
+            </p>
+        </div>
+        
+        <div class="mb-8">
+            <div class="flex">
+                <input 
+                    type="text" 
+                    id="search-input" 
+                    placeholder="Try searching for 'python tutorial' (currently has data)" 
+                    class="w-full px-4 py-3 rounded-l-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                <button 
+                    id="search-button" 
+                    class="bg-indigo-600 text-white px-6 py-3 rounded-r-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                    Search
+                </button>
+            </div>
+        </div>
 
-        function updateStatus(message, isError = false) {  
-            statusDiv.textContent = message;  
-            statusDiv.className = isError ? 'status error' : 'status';  
-        }  
+        <div class="flex flex-wrap -mx-4">
+            <!-- Filters -->
+            <div class="w-full md:w-1/4 px-4 mb-6">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h3 class="text-lg font-bold mb-4">Filters</h3>
+                    
+                    <div class="mb-4">
+                        <h4 class="font-medium mb-2">Resource Type</h4>
+                        <div id="type-filters" class="space-y-2">
+                            <div class="skeleton h-6 w-full rounded"></div>
+                            <div class="skeleton h-6 w-full rounded"></div>
+                            <div class="skeleton h-6 w-full rounded"></div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="font-medium mb-2">Language</h4>
+                        <div id="language-filters" class="space-y-2">
+                            <div class="skeleton h-6 w-full rounded"></div>
+                            <div class="skeleton h-6 w-full rounded"></div>
+                            <div class="skeleton h-6 w-full rounded"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Results -->
+            <div class="w-full md:w-3/4 px-4">
+                <div class="mb-4 flex justify-between items-center">
+                    <div id="result-stats" class="text-gray-600">
+                        Searching...
+                    </div>
+                    <div>
+                        <select id="sort-select" class="border rounded p-2 text-sm">
+                            <option value="relevance">Sort by: Relevance</option>
+                            <option value="quality">Sort by: Quality</option>
+                            <option value="date">Sort by: Date</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="results-container" class="space-y-6">
+                    <!-- Results will be populated here -->
+                    <div class="skeleton h-32 w-full rounded-lg"></div>
+                    <div class="skeleton h-32 w-full rounded-lg"></div>
+                    <div class="skeleton h-32 w-full rounded-lg"></div>
+                </div>
+                
+                <div id="pagination" class="mt-8 flex justify-center">
+                    <!-- Pagination will be populated here -->
+                </div>
+            </div>
+        </div>
+    </main>
 
-        function startSearch() {  
-            const searchTerm = document.getElementById('searchInput').value;  
-            const limit = document.getElementById('limitInput').value;  
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('search-input');
+            const searchButton = document.getElementById('search-button');
+            const resultsContainer = document.getElementById('results-container');
+            const resultStats = document.getElementById('result-stats');
+            const typeFilters = document.getElementById('type-filters');
+            const languageFilters = document.getElementById('language-filters');
+            const sortSelect = document.getElementById('sort-select');
+            const pagination = document.getElementById('pagination');
+            
+            let currentQuery = '';
+            let currentFilters = {};
+            let currentPage = 0;
+            let currentSort = 'relevance';
+            let searchTimeout;
+            let webSocket = null;
+            let resultsReceived = 0;
+            let allResults = [];
+            
+            // Initialize with a search input value but don't auto-search
+            searchInput.value = 'python tutorial';
+            
+            // Event listeners
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    currentPage = 0;
+                    performSearch();
+                }
+            });
+            
+            searchButton.addEventListener('click', function() {
+                currentPage = 0;
+                performSearch();
+            });
+            
+            sortSelect.addEventListener('change', function() {
+                currentSort = sortSelect.value;
+                // Re-sort the existing results
+                sortResults();
+            });
+            
+            function performSearch() {
+                currentQuery = searchInput.value.trim();
+                
+                if (!currentQuery) {
+                    return;
+                }
+                
+                // Clear previous results
+                resultsContainer.innerHTML = '';
+                resultStats.textContent = 'Searching...';
+                resultsReceived = 0;
+                allResults = [];
+                
+                // Show loading skeleton
+                resultsContainer.innerHTML = `
+                    <div class="skeleton h-32 w-full rounded-lg"></div>
+                    <div class="skeleton h-32 w-full rounded-lg"></div>
+                    <div class="skeleton h-32 w-full rounded-lg"></div>
+                `;
+                
+                // Directly use the regular HTTP search
+                fallbackToRegularSearch();
+            }
+            
+            function getWebSocketURL() {
+                // Build WebSocket URL with query parameters
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const host = window.location.hostname;
+                const port = '8001'; // Streaming API port
+                
+                // Convert filters to JSON
+                const filtersJson = JSON.stringify(currentFilters);
+                
+                // Create WebSocket URL
+                return `${protocol}//${host}:${port}/ws/search?query=${encodeURIComponent(currentQuery)}&filters=${encodeURIComponent(filtersJson)}`;
+            }
+            
+            function connectWebSocket(url) {
+                try {
+                    // Create WebSocket connection
+                    webSocket = new WebSocket(url);
+                    
+                    // Connection opened
+                    webSocket.onopen = function(event) {
+                        console.log("WebSocket connection established");
+                    };
+                    
+                    // Listen for messages
+                    webSocket.onmessage = function(event) {
+                        const message = JSON.parse(event.data);
+                        console.log("WebSocket message:", message);
+                        
+                        handleStreamingMessage(message);
+                    };
+                    
+                    // Handle errors
+                    webSocket.onerror = function(error) {
+                        console.error("WebSocket error:", error);
+                        resultStats.textContent = 'Error connecting to search service';
+                        resultsContainer.innerHTML = `
+                            <div class="bg-red-100 text-red-700 p-4 rounded-lg">
+                                <p>Error: Could not connect to search service</p>
+                                <p class="mt-2 text-sm">Please try again later or use the regular search.</p>
+                            </div>
+                        `;
+                        
+                        // Fall back to regular search
+                        fallbackToRegularSearch();
+                    };
+                    
+                    // Connection closed
+                    webSocket.onclose = function(event) {
+                        console.log("WebSocket connection closed", event);
+                        
+                        // Only show message if it wasn't our own closing
+                        if (event.code !== 1000) {
+                            resultStats.textContent = 'Search connection closed';
+                        }
+                    };
+                } catch (error) {
+                    console.error("Error creating WebSocket:", error);
+                    
+                    // Fall back to regular search
+                    fallbackToRegularSearch();
+                }
+            }
+            
+            function handleStreamingMessage(message) {
+                // Clear loading skeletons on first message
+                if (resultsReceived === 0) {
+                    resultsContainer.innerHTML = '';
+                }
+                
+                // Handle different message types
+                switch (message.type) {
+                    case 'stats':
+                        resultStats.textContent = `Found ${message.data.total} results (${message.data.took}ms)`;
+                        
+                        if (message.data.total === 0) {
+                            resultsContainer.innerHTML = `
+                                <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                                    <p class="text-gray-600">No results found for "${currentQuery}"</p>
+                                    <p class="text-sm text-gray-500 mt-2">Try using different keywords or removing filters</p>
+                                </div>
+                            `;
+                        }
+                        break;
+                        
+                    case 'result':
+                        resultsReceived++;
+                        const result = message.data;
+                        
+                        // Add to all results array for sorting
+                        allResults.push(result);
+                        
+                        // Add result to the page
+                        renderSingleResult(result);
+                        break;
+                        
+                    case 'status':
+                        // Show status message
+                        console.log("Status:", message.data.message);
+                        
+                        // Update result count if necessary
+                        if (resultsReceived === 0) {
+                            resultStats.textContent = "No results found yet. Still searching...";
+                            resultsContainer.innerHTML = `
+                                <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                                    <p class="text-gray-600">No results found yet for "${currentQuery}"</p>
+                                    <p class="text-sm text-gray-500 mt-2">We're still looking. Please wait...</p>
+                                    <div class="mt-4">
+                                        <div class="animate-pulse bg-gray-200 h-2 w-full rounded"></div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        break;
+                        
+                    case 'error':
+                        console.error("Search error:", message.data.message);
+                        resultStats.textContent = 'Search error';
+                        resultsContainer.innerHTML = `
+                            <div class="bg-red-100 text-red-700 p-4 rounded-lg">
+                                <p>Error: ${message.data.message}</p>
+                                <p class="mt-2 text-sm">Please try a different search query.</p>
+                            </div>
+                        `;
+                        break;
+                }
+            }
+            
+            function renderSingleResult(result) {
+                // Create result card
+                const card = document.createElement('div');
+                card.className = 'bg-white p-6 rounded-lg shadow-md mb-4';
+                card.dataset.resultId = result.id;
+                
+                // Create type badge
+                const typeBadge = document.createElement('span');
+                typeBadge.className = `inline-block px-2 py-1 text-xs rounded-full mr-2 ${getTypeBadgeColor(result.type)}`;
+                typeBadge.textContent = result.type;
+                
+                // Create language badge if available
+                let langBadge = null;
+                if (result.language) {
+                    langBadge = document.createElement('span');
+                    langBadge.className = `inline-block px-2 py-1 text-xs rounded-full ${getLanguageBadgeColor(result.language)}`;
+                    langBadge.textContent = result.language;
+                }
+                
+                // Add source badge (elasticsearch or realtime)
+                const sourceBadge = document.createElement('span');
+                sourceBadge.className = `inline-block px-2 py-1 text-xs rounded-full ml-2 ${result.source === 'realtime' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`;
+                sourceBadge.textContent = result.source === 'realtime' ? 'New' : 'Indexed';
+                
+                // Build card content
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <h3 class="text-xl font-semibold mb-2">
+                            <a href="${result.url}" target="_blank" class="text-indigo-600 hover:text-indigo-800">${result.title}</a>
+                        </h3>
+                        <div class="flex items-center">
+                            <span class="text-xs text-gray-500 mr-1">Relevance:</span>
+                            <div class="w-16 bg-gray-200 rounded-full h-2">
+                                <div class="bg-green-500 h-2 rounded-full" style="width: ${Math.min(100, (result.score / 10) * 100)}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-gray-500 text-sm mb-3">${result.url}</div>
+                    <div class="mb-4">${result.description || 'No description available'}</div>
+                    <div class="mb-2 badges"></div>
+                `;
+                
+                // Add badges
+                card.querySelector('.badges').appendChild(typeBadge);
+                if (langBadge) card.querySelector('.badges').appendChild(langBadge);
+                card.querySelector('.badges').appendChild(sourceBadge);
+                
+                // Add card to results container
+                if (result.source === 'realtime') {
+                    // Add new results at the top with animation
+                    card.classList.add('animate-fadeIn');
+                    resultsContainer.prepend(card);
+                } else {
+                    resultsContainer.appendChild(card);
+                }
+                
+                // Sort results if needed
+                if (currentSort !== 'relevance') {
+                    sortResults();
+                }
+            }
+            
+            function sortResults() {
+                // Sort the allResults array
+                switch (currentSort) {
+                    case 'relevance':
+                        allResults.sort((a, b) => b.score - a.score);
+                        break;
+                    case 'date':
+                        allResults.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+                        break;
+                    case 'quality':
+                        allResults.sort((a, b) => (b.quality_score || 0) - (a.quality_score || 0));
+                        break;
+                }
+                
+                // Clear and re-render all results
+                resultsContainer.innerHTML = '';
+                allResults.forEach(renderSingleResult);
+            }
+            
+            function fallbackToRegularSearch() {
+                // Fall back to regular search using the API
+                simulateSearchRequest(currentQuery)
+                    .then(renderResults)
+                    .catch(error => {
+                        console.error('Regular search error:', error);
+                        resultsContainer.innerHTML = `
+                            <div class="bg-red-100 text-red-700 p-4 rounded-lg">
+                                <p>Error: ${error.message}</p>
+                                <p class="mt-2 text-sm">Please check the console for more details.</p>
+                            </div>
+                        `;
+                        resultStats.textContent = 'Search failed';
+                    });
+            }
+            
+            function simulateSearchRequest(query) {
+                // Build query params
+                const params = new URLSearchParams({
+                    q: query,
+                    page: currentPage,
+                    size: 10
+                });
+                
+                // Add filters if any
+                Object.keys(currentFilters).forEach(key => {
+                    if (currentFilters[key]) {
+                        params.append(key, currentFilters[key]);
+                    }
+                });
+                
+                // Make API call to the backend
+                const apiUrl = `http://${window.location.hostname}:8000/search?${params}`;
+                console.log(`Making API call to: ${apiUrl}`);
+                
+                return fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    mode: 'cors',
+                    credentials: 'omit'
+                })
+                    .then(response => {
+                        console.log('API response status:', response.status);
+                        if (!response.ok) {
+                            throw new Error(`Search failed: ${response.status} ${response.statusText}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('API response data:', data);
+                        return data;
+                    })
+                    .catch(error => {
+                        console.error('API error:', error);
+                        throw error;
+                    });
+            }
+            
+            function renderResults(data) {
+                // Handle case where data is undefined (No results found case)
+                if (!data) {
+                    return;
+                }
+                
+                // Update result stats
+                resultStats.textContent = `Found ${data.total || 0} results (${data.took || 0}ms)`;
+                
+                // Clear results and render hits
+                resultsContainer.innerHTML = '';
+                
+                if (!data.hits || data.hits.length === 0) {
+                    resultsContainer.innerHTML = `
+                        <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                            <p class="text-gray-600">No results found for "${currentQuery}"</p>
+                            <p class="text-sm text-gray-500 mt-2">Try using different keywords or removing filters</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                data.hits.forEach(hit => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white p-6 rounded-lg shadow-md';
+    
+    // Default values for missing fields
+    const item = hit._source || hit;
+    const quality_score = item.quality_score || 0.7;
+    const language = item.language || item.languages?.[0] || "unknown";
+    const type = item.type || "article";
+    
+    // Create badge for resource type
+    const typeBadge = document.createElement('span');
+    typeBadge.className = `inline-block px-2 py-1 text-xs rounded-full mr-2 ${getTypeBadgeColor(type)}`;
+    typeBadge.textContent = type;
+    
+    // Create badge for language
+    const langBadge = document.createElement('span');
+    langBadge.className = `inline-block px-2 py-1 text-xs rounded-full ${getLanguageBadgeColor(language)}`;
+    langBadge.textContent = language;
+    
+    // Build the card content
+    card.innerHTML = `
+        <div class="flex justify-between items-start">
+            <h3 class="text-xl font-semibold mb-2">
+                <a href="${item.url}" target="_blank" class="text-indigo-600 hover:text-indigo-800">${item.title}</a>
+            </h3>
+            <div class="flex items-center">
+                <span class="text-xs text-gray-500 mr-1">Quality:</span>
+                <div class="w-16 bg-gray-200 rounded-full h-2">
+                    <div class="bg-green-500 h-2 rounded-full" style="width: ${quality_score * 100}%"></div>
+                </div>
+            </div>
+        </div>
+        <div class="text-gray-500 text-sm mb-3">${item.url}</div>
+        <div class="mb-4">${item.description || 'No description available'}</div>
+        <div class="mb-2 badges"></div>
+    `;
+    
+    // Add badges
+    card.querySelector('.badges').appendChild(typeBadge);
+    card.querySelector('.badges').appendChild(langBadge);
+    
+    // Add highlights if available
+    if (hit.highlight) {
+        const highlightsDiv = document.createElement('div');
+        highlightsDiv.className = 'mt-4 pt-4 border-t border-gray-200';
+        
+        if (hit.highlight.content) {
+            const contentHighlight = document.createElement('div');
+            contentHighlight.className = 'mb-3';
+            contentHighlight.innerHTML = `
+                <div class="text-xs text-gray-500 mb-1">Content Preview:</div>
+                <div class="text-sm text-gray-700">${hit.highlight.content[0]}</div>
+            `;
+            highlightsDiv.appendChild(contentHighlight);
+        }
+        
+        if (hit.highlight.code_snippets && hit.highlight.code_snippets.length > 0) {
+            const snippetHighlight = document.createElement('div');
+            snippetHighlight.className = 'mb-3';
+            snippetHighlight.innerHTML = `
+                <div class="text-xs text-gray-500 mb-1">Code Snippet:</div>
+                <pre class="code-snippet text-sm">${hit.highlight.code_snippets[0]}</pre>
+            `;
+            highlightsDiv.appendChild(snippetHighlight);
+        }
+        
+        card.appendChild(highlightsDiv);
+    }
+    
+    resultsContainer.appendChild(card);
+});
 
-            if (!searchTerm) {  
-                updateStatus('Please enter a search term', true);  
-                return;  
-            }  
+// Handle facets for filters
+const facets = {
+    resource_types: [],
+    languages: []
+};
 
-            // Disable search button  
-            searchButton.disabled = true;  
+// If data.facets exists, use it; otherwise try to extract facets from aggregations
+if (data.facets) {
+    facets.resource_types = data.facets.resource_types || [];
+    facets.languages = data.facets.languages || [];
+} else if (data.aggregations) {
+    // Convert Elasticsearch aggregations to our facet format
+    if (data.aggregations.resource_types) {
+        facets.resource_types = data.aggregations.resource_types.buckets || [];
+    }
+    if (data.aggregations.languages) {
+        facets.languages = data.aggregations.languages.buckets || [];
+    }
+}
 
-            // Clear previous results  
-            resultsDiv.innerHTML = '';  
-            updateStatus('Connecting...');  
+// Render filters
+renderFilters(facets);
 
-            // Close existing WebSocket if any  
-            if (ws) {  
-                ws.close();  
-            }  
+// Render pagination
+renderPagination(data.total || 0);
+}
 
-            // Create new WebSocket connection  
-            try {  
-                ws = new WebSocket(`ws://${window.location.hostname}:8000/ws/search`); 
-            } catch (error) {  
-                updateStatus(`WebSocket connection error: ${error.message}`, true);  
-                searchButton.disabled = false;  
-                return;  
-            }  
+function renderFilters(facets) {
+    // Render resource type filters
+    typeFilters.innerHTML = '';
+    facets.resource_types.forEach(filter => {
+        const filterItem = document.createElement('div');
+        filterItem.className = 'flex items-center';
+        filterItem.innerHTML = `
+            <input type="radio" id="type-${filter.key}" name="type" value="${filter.key}" 
+                ${currentFilters.type === filter.key ? 'checked' : ''} class="mr-2">
+            <label for="type-${filter.key}" class="text-sm flex-1">${filter.key}</label>
+            <span class="text-xs text-gray-500">(${filter.doc_count})</span>
+        `;
+        
+        typeFilters.appendChild(filterItem);
+        
+        // Add event listener to filter
+        filterItem.querySelector('input').addEventListener('change', function() {
+            if (this.checked) {
+                currentFilters.type = this.value;
+            } else {
+                delete currentFilters.type;
+            }
+            currentPage = 0;
+            performSearch();
+        });
+    });
+    
+    // Add "All" option for resource type
+    const allTypeFilter = document.createElement('div');
+    allTypeFilter.className = 'flex items-center';
+    allTypeFilter.innerHTML = `
+        <input type="radio" id="type-all" name="type" value="" 
+            ${!currentFilters.type ? 'checked' : ''} class="mr-2">
+        <label for="type-all" class="text-sm flex-1">All Types</label>
+    `;
+    
+    typeFilters.insertBefore(allTypeFilter, typeFilters.firstChild);
+    
+    allTypeFilter.querySelector('input').addEventListener('change', function() {
+        if (this.checked) {
+            delete currentFilters.type;
+            currentPage = 0;
+            performSearch();
+        }
+    });
+    
+    // Render language filters
+    languageFilters.innerHTML = '';
+    facets.languages.forEach(filter => {
+        const filterItem = document.createElement('div');
+        filterItem.className = 'flex items-center';
+        filterItem.innerHTML = `
+            <input type="radio" id="lang-${filter.key}" name="language" value="${filter.key}" 
+                ${currentFilters.language === filter.key ? 'checked' : ''} class="mr-2">
+            <label for="lang-${filter.key}" class="text-sm flex-1">${filter.key}</label>
+            <span class="text-xs text-gray-500">(${filter.doc_count})</span>
+        `;
+        
+        languageFilters.appendChild(filterItem);
+        
+        // Add event listener to filter
+        filterItem.querySelector('input').addEventListener('change', function() {
+            if (this.checked) {
+                currentFilters.language = this.value;
+            } else {
+                delete currentFilters.language;
+            }
+            currentPage = 0;
+            performSearch();
+        });
+    });
+    
+    // Add "All" option for language
+    const allLangFilter = document.createElement('div');
+    allLangFilter.className = 'flex items-center';
+    allLangFilter.innerHTML = `
+        <input type="radio" id="lang-all" name="language" value="" 
+            ${!currentFilters.language ? 'checked' : ''} class="mr-2">
+        <label for="lang-all" class="text-sm flex-1">All Languages</label>
+    `;
+    
+    languageFilters.insertBefore(allLangFilter, languageFilters.firstChild);
+    
+    allLangFilter.querySelector('input').addEventListener('change', function() {
+        if (this.checked) {
+            delete currentFilters.language;
+            currentPage = 0;
+            performSearch();
+        }
+    });
+}
 
-            ws.onopen = () => {  
-                updateStatus('Connected. Starting search...');  
-                ws.send(JSON.stringify({  
-                    query: searchTerm,  
-                    limit: limit ? parseInt(limit) : null  
-                }));  
-            };  
+function renderPagination(total) {
+    const totalPages = Math.ceil(total / 10);
+    pagination.innerHTML = '';
+    
+    if (totalPages <= 1) {
+        return;
+    }
+    
+    // Previous button
+    const prevButton = document.createElement('button');
+    prevButton.className = `mx-1 px-3 py-1 rounded ${currentPage > 0 ? 'bg-gray-200 hover:bg-gray-300' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`;
+    prevButton.textContent = 'Previous';
+    prevButton.disabled = currentPage === 0;
+    prevButton.addEventListener('click', function() {
+        if (currentPage > 0) {
+            currentPage--;
+            performSearch();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+    pagination.appendChild(prevButton);
+    
+    // Page numbers
+    const startPage = Math.max(0, currentPage - 2);
+    const endPage = Math.min(totalPages - 1, currentPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        const pageButton = document.createElement('button');
+        pageButton.className = `mx-1 px-3 py-1 rounded ${i === currentPage ? 'bg-indigo-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`;
+        pageButton.textContent = i + 1;
+        pageButton.addEventListener('click', function() {
+            currentPage = i;
+            performSearch();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        pagination.appendChild(pageButton);
+    }
+    
+    // Next button
+    const nextButton = document.createElement('button');
+    nextButton.className = `mx-1 px-3 py-1 rounded ${currentPage < totalPages - 1 ? 'bg-gray-200 hover:bg-gray-300' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`;
+    nextButton.textContent = 'Next';
+    nextButton.disabled = currentPage >= totalPages - 1;
+    nextButton.addEventListener('click', function() {
+        if (currentPage < totalPages - 1) {
+            currentPage++;
+            performSearch();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+    pagination.appendChild(nextButton);
+}
 
-            ws.onmessage = (event) => {  
-                const data = JSON.parse(event.data);  
+function getTypeBadgeColor(type) {
+    const colors = {
+        'tutorial': 'bg-blue-100 text-blue-800',
+        'documentation': 'bg-green-100 text-green-800',
+        'repository': 'bg-purple-100 text-purple-800',
+        'article': 'bg-yellow-100 text-yellow-800'
+    };
+    
+    return colors[type] || 'bg-gray-100 text-gray-800';
+}
 
-                if (data.status === 'error') {  
-                    updateStatus(`Error: ${data.message}`, true);  
-                    searchButton.disabled = false;  
-                    return;  
-                }  
+function getLanguageBadgeColor(language) {
+    const colors = {
+        'javascript': 'bg-yellow-100 text-yellow-800',
+        'python': 'bg-blue-100 text-blue-800',
+        'java': 'bg-orange-100 text-orange-800',
+        'go': 'bg-teal-100 text-teal-800',
+        'rust': 'bg-red-100 text-red-800',
+        'php': 'bg-indigo-100 text-indigo-800',
+        'ruby': 'bg-red-100 text-red-800',
+        'c#': 'bg-purple-100 text-purple-800',
+        'c++': 'bg-gray-100 text-gray-800'
+    };
+    
+    return colors[language] || 'bg-gray-100 text-gray-800';
+}
 
-                if (data.status === 'started') {  
-                    updateStatus(data.message);  
-                    return;  
-                }  
-
-                if (data.data && data.data.length > 0) {  
-                    data.data.forEach(result => {  
-                        const resultElement = document.createElement('div');  
-                        resultElement.className = 'result-item';  
-                        resultElement.innerHTML = `  
-                            <h3><a href="${result.url}" target="_blank">${result.title || 'Untitled'}</a></h3>  
-                            <p>${result.snippet || result.description || 'No description available'}</p>  
-                            <small>Source: ${result.domain || 'Unknown'} | Type: ${result.resource_type || 'Unknown'}</small>  
-                        `;  
-                        resultsDiv.appendChild(resultElement);  
-                    });  
-                }  
-
-                if (data.finished) {  
-                    updateStatus('Search completed');  
-                    searchButton.disabled = false;  
-                }  
-            };  
-
-            ws.onclose = () => {  
-                updateStatus('Connection closed');  
-                searchButton.disabled = false;  
-            };  
-
-            ws.onerror = (error) => {  
-                updateStatus(`WebSocket error: ${error.message}`, true);  
-                searchButton.disabled = false;  
-            };  
-        }  
-
-        // Clean up WebSocket on page unload  
-        window.onbeforeunload = () => {  
-            if (ws) {  
-                ws.close();  
-            }  
-        };  
-    </script>  
-</body>  
-</html>  
+            searchForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                currentPage = 0;
+                performSearch();
+            });
+        });
+    </script>
+</body>
+</html>
