@@ -278,3 +278,8 @@ For example:
 docker compose build streaming_api
 docker compose up -d streaming_api
 ``` 
+
+<!-- Just for local reference -->
+```bash
+curl -X GET "http://localhost:8000/search?q=cobol" | jq && sleep 30 && curl -X GET "http://localhost:8000/search?q=cobol" | jq
+```

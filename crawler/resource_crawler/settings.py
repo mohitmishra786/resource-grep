@@ -8,15 +8,16 @@ NEWSPIDER_MODULE = 'resource_crawler.spiders'
 # Crawl responsibly by identifying yourself  
 USER_AGENT = 'Mozilla/5.0 (compatible; ResourceCrawler/1.0; +http://example.com)'
 
-# Obey robots.txt rules  
-ROBOTSTXT_OBEY = True
+# Obey robots.txt rules - set to False to allow more comprehensive crawling
+# Note: Be respectful of website policies in production environments
+ROBOTSTXT_OBEY = False
 
 # Configure maximum concurrent requests  
-CONCURRENT_REQUESTS = 32  
-CONCURRENT_REQUESTS_PER_DOMAIN = 16
+CONCURRENT_REQUESTS = 128  
+CONCURRENT_REQUESTS_PER_DOMAIN = 64
 
 # Configure a delay for requests for the same website  
-DOWNLOAD_DELAY = 0.5  
+DOWNLOAD_DELAY = 0.1  
 RANDOMIZE_DOWNLOAD_DELAY = True
 
 # Disable cookies  
@@ -38,31 +39,28 @@ ITEM_PIPELINES = {
 LOG_LEVEL = 'INFO'
 LOG_FORMAT = '%(asctime)s [%(name)s] %(levelname)s: %(message)s'
 
-# Configure depth
-DEPTH_LIMIT = 5  # Increased from 3 to allow deeper crawling
+# Configure depth - increased substantially to allow deeper crawling
+DEPTH_LIMIT = 12
 DEPTH_PRIORITY = 1
 SCHEDULER_DISK_QUEUE = 'scrapy.squeues.PickleLifoDiskQueue'
 SCHEDULER_MEMORY_QUEUE = 'scrapy.squeues.LifoMemoryQueue'
 
 # Configure retries
 RETRY_ENABLED = True
-RETRY_TIMES = 3
+RETRY_TIMES = 5
 RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]
 
-# Configure timeouts
-DOWNLOAD_TIMEOUT = 20  # Increased from 15 to allow more time for responses
+# Configure timeouts - increased to allow more time for responses
+DOWNLOAD_TIMEOUT = 30
 
-# Configure allowed domains - expanded to include more sites
-ALLOWED_DOMAINS = [
-    # These are used only for reference in the spider's logic - not as strict limitations
-    # The spider's should_follow method has been updated to allow all domains
-]
+# Configure allowed domains - no restrictions
+ALLOWED_DOMAINS = []
 
-# Maximum number of pages to crawl per spider
-CLOSESPIDER_PAGECOUNT = 2000  # Set a reasonable limit to prevent infinite crawling
+# Maximum number of pages to crawl per spider - increased dramatically
+CLOSESPIDER_PAGECOUNT = 10000
 
 # Maximum time the spider is allowed to run (in seconds)
-CLOSESPIDER_TIMEOUT = 3600  # 1 hour - adjust as needed
+CLOSESPIDER_TIMEOUT = 14400  # 4 hours
 
 # Configure signals
 SIGNALS_ENABLED = False
@@ -77,3 +75,13 @@ ELASTICSEARCH_PORT = 9200
 
 # Real-time updates
 REALTIME_UPDATES = True
+
+# Disable auto-throttling to crawl faster
+AUTOTHROTTLE_ENABLED = False
+
+# Don't filter duplicates to ensure we don't miss content
+DUPEFILTER_CLASS = 'scrapy.dupefilters.BaseDupeFilter'
+
+# Increase DNS cache size
+DNSCACHE_ENABLED = True
+DNSCACHE_SIZE = 1000
