@@ -90,7 +90,7 @@ class ResourceSpider(scrapy.Spider):
                 f'https://learn.microsoft.com/en-us/search/?terms={search_query}',
                 f'https://www.ibm.com/search?q={search_query}',
                 
-                # General search engines - increased coverage
+                # Google search - expanded with more variations
                 f'https://www.google.com/search?q={search_query}+programming+tutorial',
                 f'https://www.google.com/search?q={search_query}+programming+guide',
                 f'https://www.google.com/search?q={search_query}+coding+tutorial',
@@ -98,9 +98,32 @@ class ResourceSpider(scrapy.Spider):
                 f'https://www.google.com/search?q={search_query}+language+tutorial',
                 f'https://www.google.com/search?q={search_query}+programming+book',
                 f'https://www.google.com/search?q={search_query}+documentation',
+                f'https://www.google.com/search?q=learn+{search_query}+programming',
+                f'https://www.google.com/search?q=best+{search_query}+resources',
+                f'https://www.google.com/search?q={search_query}+implementation',
+                f'https://www.google.com/search?q={search_query}+language+specification',
+                f'https://www.google.com/search?q={search_query}+code+examples',
+                f'https://www.google.com/search?q={search_query}+reference+manual',
+                f'https://www.google.com/search?q={search_query}+programming+language',
+                f'https://www.google.com/search?q={search_query}+compiler',
+                f'https://www.google.com/search?q={search_query}+interpreter',
+                f'https://www.google.com/search?q=what+is+{search_query}',
+                f'https://www.google.com/search?q={search_query}+history',
+                f'https://www.google.com/search?q={search_query}+vs',
+                # Pure search query without modifiers - broadest possible
+                f'https://www.google.com/search?q={search_query}',
+                
+                # Other search engines 
                 f'https://www.bing.com/search?q={search_query}+programming+guide',
+                f'https://www.bing.com/search?q={search_query}+programming',
                 f'https://duckduckgo.com/?q={search_query}+programming',
+                f'https://duckduckgo.com/?q={search_query}',
                 f'https://search.brave.com/search?q={search_query}+programming',
+                f'https://search.brave.com/search?q={search_query}',
+                f'https://www.startpage.com/do/search?q={search_query}+programming',
+                f'https://www.qwant.com/?q={search_query}+programming',
+                f'https://www.mojeek.com/search?q={search_query}+programming',
+                f'https://search.yahoo.com/search?p={search_query}+programming',
                 
                 # Forums
                 f'https://www.reddit.com/search/?q={search_query}+programming',
@@ -109,15 +132,25 @@ class ResourceSpider(scrapy.Spider):
                 f'https://news.ycombinator.com/item?id=search&q={search_query}',
                 f'https://forums.oracle.com/ords/apexds/domain/dev-community/search?search={search_query}',
                 f'https://community.ibm.com/community/user/search?query={search_query}',
+                f'https://stackoverflow.blog/?s={search_query}',
+                f'https://discuss.codecademy.com/search?q={search_query}',
+                f'https://talk.automators.fm/search?q={search_query}',
                 
                 # Video platforms
                 f'https://www.youtube.com/results?search_query={search_query}+programming+tutorial',
+                f'https://www.youtube.com/results?search_query={search_query}+tutorial',
+                f'https://www.youtube.com/results?search_query=learn+{search_query}',
+                f'https://vimeo.com/search?q={search_query}+programming',
                 
                 # University course repositories
                 f'https://ocw.mit.edu/search/?q={search_query}',
                 f'https://www.coursera.org/search?query={search_query}',
                 f'https://www.khanacademy.org/search?page_search_query={search_query}',
                 f'https://www.edx.org/search?q={search_query}',
+                f'https://www.udemy.com/courses/search/?src=ukw&q={search_query}',
+                f'https://www.udacity.com/courses/all?search={search_query}',
+                f'https://online-learning.harvard.edu/search-classes/{search_query}',
+                f'https://online.stanford.edu/search-catalog/{search_query}',
                 
                 # Specialized programming sites
                 f'https://legacy.cplusplus.com/search.do?q={search_query}',
@@ -125,6 +158,13 @@ class ResourceSpider(scrapy.Spider):
                 f'https://www.sourcecodesworld.com/source/search.asp?key={search_query}',
                 f'https://sourceforge.net/directory/?q={search_query}',
                 f'https://mvnrepository.com/search?q={search_query}',
+                f'https://devdocs.io/#q={search_query}',
+                f'https://hackage.haskell.org/packages/search?terms={search_query}',
+                f'https://crates.io/search?q={search_query}',
+                f'https://www.npmjs.com/search?q={search_query}',
+                f'https://pypi.org/search/?q={search_query}',
+                f'https://rubygems.org/search?query={search_query}',
+                f'https://packagist.org/?query={search_query}',
                 
                 # Legacy language specific resources
                 f'https://www.microfocus.com/search?q={search_query}',
@@ -138,11 +178,28 @@ class ResourceSpider(scrapy.Spider):
                 f'https://scholar.google.com/scholar?q={search_query}+programming',
                 f'https://arxiv.org/search/?query={search_query}&searchtype=all',
                 f'https://dl.acm.org/action/doSearch?AllField={search_query}',
+                f'https://ieeexplore.ieee.org/search/searchresult.jsp?queryText={search_query}',
+                f'https://www.sciencedirect.com/search?qs={search_query}',
+                f'https://link.springer.com/search?query={search_query}',
+                f'https://pubmed.ncbi.nlm.nih.gov/?term={search_query}+programming',
                 
                 # Books and documentation
                 f'https://books.google.com/books?q={search_query}+programming',
                 f'https://archive.org/search?query={search_query}%20programming',
                 f'https://www.pdfdrive.com/search?q={search_query}+programming',
+                f'https://openlibrary.org/search?q={search_query}+programming',
+                f'https://www.gutenberg.org/ebooks/search/?query={search_query}',
+                f'https://www.oreilly.com/search/?query={search_query}',
+                f'https://www.manning.com/search?q={search_query}',
+                f'https://www.packtpub.com/search?query={search_query}',
+                
+                # General websites
+                f'https://en.wikipedia.org/w/index.php?search={search_query}+programming+language',
+                f'https://wiki.c2.com/?SearchResults&search={search_query}',
+                f'https://www.wikiwand.com/?search={search_query}',
+                f'https://rosettacode.org/w/index.php?search={search_query}',
+                f'https://alternativeto.net/browse/search?q={search_query}',
+                f'https://lobste.rs/search?q={search_query}&what=stories&order=relevance'
             ]
             
             # Handle start URLs from command line
