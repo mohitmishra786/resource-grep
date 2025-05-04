@@ -49,6 +49,9 @@ class ResourceSearch:
                     "code_snippets": {"pre_tags": ["<code>"], "post_tags": ["</code>"]}
                 }
             },
+            "collapse": {
+                "field": "url"  # Ensure we collapse results based on URL to avoid duplicates
+            },
             "aggs": {
                 "resource_types": {
                     "terms": {"field": "type.keyword"}
@@ -92,10 +95,22 @@ class ResourceSearch:
         # Keep track of unique languages for facets
         unique_languages = {}
         
+        # Use a set to track URLs we've already added to results
+        seen_urls = set()
+        
         # Format hits
         for hit in results["hits"]["hits"]:
             # Get source data and handle potential field names
             source = hit["_source"]
+            
+            # Skip if this URL has already been processed (extra safety check)
+            url = source.get("url")
+            if url in seen_urls:
+                continue
+            
+            # Add URL to seen set
+            seen_urls.add(url)
+            
             language = source.get("language") 
             if language is None and "languages" in source and source["languages"]:
                 language = source["languages"][0]  # Use first language if languages list exists
@@ -112,7 +127,7 @@ class ResourceSearch:
             formatted_hit = {
                 "id": hit["_id"],
                 "score": hit["_score"],
-                "url": source["url"],
+                "url": url,
                 "title": source["title"],
                 "description": source["description"],
                 "type": source["type"],

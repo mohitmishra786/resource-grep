@@ -35,14 +35,20 @@ def run_crawler():
     ])
 
 # Function to be called from the API
-def start_crawler(seed_urls=None):
+def start_crawler(seed_urls=None, search_query=None):
     # Generate a unique job ID
     job_id = str(uuid.uuid4())
     
+    # Use provided search_query or default to "python"
+    query = search_query if search_query else "python"
+    
     # Create command
-    cmd = ['scrapy', 'crawl', 'resource_spider', '-a', 'search_query=python']
+    cmd = ['scrapy', 'crawl', 'resource_spider', '-a', f'search_query={query}']
     if seed_urls:
         cmd.extend(['-a', f'start_urls={",".join(seed_urls)}'])
+    
+    # Add logging of the query
+    logger.info(f"Starting crawler job {job_id} with query: {query}")
     
     # Run scrapy crawl command
     subprocess.Popen(cmd)

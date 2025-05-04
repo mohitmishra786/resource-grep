@@ -63,3 +63,14 @@ ALLOWED_DOMAINS = [
 
 # Configure signals
 SIGNALS_ENABLED = False
+
+# Redis settings
+REDIS_HOST = 'redis'
+REDIS_PORT = 6379
+
+# Elasticsearch settings 
+ELASTICSEARCH_HOST = 'elasticsearch'
+ELASTICSEARCH_PORT = 9200
+
+# Real-time updates
+REALTIME_UPDATES = True

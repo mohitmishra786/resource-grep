@@ -86,6 +86,20 @@
             </div>
         </div>
 
+        <!-- Status Stream - Hidden by default -->
+        <div id="status-stream" class="mb-6 bg-gray-100 p-4 rounded-lg border border-gray-300 hidden">
+            <h3 class="text-lg font-semibold mb-2 flex justify-between">
+                <span>Processing Status</span>
+                <button id="close-status" class="text-gray-500 hover:text-gray-700">×</button>
+            </h3>
+            <div id="status-content" class="space-y-2">
+                <div class="flex items-center">
+                    <div class="w-4 h-4 rounded-full bg-gray-300 mr-2"></div>
+                    <span class="text-gray-600">Waiting for search...</span>
+                </div>
+            </div>
+        </div>
+        
         <div class="flex flex-wrap -mx-4">
             <!-- Filters -->
             <div class="w-full md:w-1/4 px-4 mb-6">
@@ -151,6 +165,9 @@
             const languageFilters = document.getElementById('language-filters');
             const sortSelect = document.getElementById('sort-select');
             const pagination = document.getElementById('pagination');
+            const statusStream = document.getElementById('status-stream');
+            const statusContent = document.getElementById('status-content');
+            const closeStatus = document.getElementById('close-status');
             
             let currentQuery = '';
             let currentFilters = {};
@@ -160,9 +177,15 @@
             let webSocket = null;
             let resultsReceived = 0;
             let allResults = [];
+            let statusMessages = [];
             
             // Initialize with a search input value but don't auto-search
             searchInput.value = 'python tutorial';
+            
+            // Close status button
+            closeStatus.addEventListener('click', function() {
+                statusStream.classList.add('hidden');
+            });
             
             // Event listeners
             searchInput.addEventListener('keypress', function(e) {
@@ -196,6 +219,11 @@
                 resultsReceived = 0;
                 allResults = [];
                 
+                // Close previous WebSocket connection if exists
+                if (webSocket && webSocket.readyState !== WebSocket.CLOSED) {
+                    webSocket.close();
+                }
+                
                 // Show loading skeleton
                 resultsContainer.innerHTML = `
                     <div class="skeleton h-32 w-full rounded-lg"></div>
@@ -203,8 +231,61 @@
                     <div class="skeleton h-32 w-full rounded-lg"></div>
                 `;
                 
-                // Directly use the regular HTTP search
-                fallbackToRegularSearch();
+                // Add search mode toggle after the search input
+                const searchModeToggleId = 'search-mode-toggle';
+                const existingToggle = document.getElementById(searchModeToggleId);
+                
+                if (!existingToggle) {
+                    const toggleContainer = document.createElement('div');
+                    toggleContainer.className = 'mt-2 flex justify-end';
+                    toggleContainer.innerHTML = `
+                        <div class="inline-flex rounded-md shadow-sm" role="group">
+                            <button id="http-mode" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-l-lg active">
+                                HTTP Search
+                            </button>
+                            <button id="ws-mode" class="px-4 py-2 text-sm font-medium text-white bg-indigo-400 rounded-r-lg">
+                                WebSocket (Live)
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Insert toggle after search input container
+                    const searchInputContainer = document.querySelector('.mb-8');
+                    searchInputContainer.after(toggleContainer);
+                    
+                    // Add event listeners to toggle buttons
+                    document.getElementById('http-mode').addEventListener('click', function() {
+                        if (webSocket && webSocket.readyState !== WebSocket.CLOSED) {
+                            webSocket.close();
+                        }
+                        this.classList.remove('bg-indigo-400');
+                        this.classList.add('bg-indigo-600', 'active');
+                        document.getElementById('ws-mode').classList.remove('bg-indigo-600', 'active');
+                        document.getElementById('ws-mode').classList.add('bg-indigo-400');
+                        fallbackToRegularSearch();
+                    });
+                    
+                    document.getElementById('ws-mode').addEventListener('click', function() {
+                        this.classList.remove('bg-indigo-400');
+                        this.classList.add('bg-indigo-600', 'active');
+                        document.getElementById('http-mode').classList.remove('bg-indigo-600', 'active');
+                        document.getElementById('http-mode').classList.add('bg-indigo-400');
+                        const wsURL = getWebSocketURL();
+                        connectWebSocket(wsURL);
+                    });
+                }
+                
+                // Check if WebSocket mode is active
+                const wsMode = document.getElementById('ws-mode')?.classList.contains('active');
+                
+                if (wsMode) {
+                    // Use WebSocket for searching
+                    const wsURL = getWebSocketURL();
+                    connectWebSocket(wsURL);
+                } else {
+                    // Directly use the regular HTTP search
+                    fallbackToRegularSearch();
+                }
             }
             
             function getWebSocketURL() {
@@ -223,11 +304,33 @@
             function connectWebSocket(url) {
                 try {
                     // Create WebSocket connection
+                    addStatusUpdate('Connecting to WebSocket for live updates...', 'pending');
                     webSocket = new WebSocket(url);
                     
                     // Connection opened
                     webSocket.onopen = function(event) {
                         console.log("WebSocket connection established");
+                        addStatusUpdate('WebSocket connected. Waiting for live results...', 'success');
+                        
+                        // Show that we're in WebSocket mode
+                        resultStats.textContent = 'Using WebSocket for live search results...';
+                        
+                        // Clear loading skeletons, but keep any existing results
+                        const skeletons = resultsContainer.querySelectorAll('.skeleton');
+                        skeletons.forEach(skeleton => skeleton.remove());
+                        
+                        // Add info message if no results yet
+                        if (resultsReceived === 0 && !resultsContainer.querySelector('.bg-white')) {
+                            resultsContainer.innerHTML = `
+                                <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                                    <p class="text-gray-600">Waiting for results for "${currentQuery}"</p>
+                                    <p class="text-sm text-gray-500 mt-2">Results will appear here in real-time as they're found</p>
+                                    <div class="mt-4">
+                                        <div class="animate-pulse bg-blue-200 h-2 w-full rounded"></div>
+                                    </div>
+                                </div>
+                            `;
+                        }
                     };
                     
                     // Listen for messages
@@ -241,6 +344,7 @@
                     // Handle errors
                     webSocket.onerror = function(error) {
                         console.error("WebSocket error:", error);
+                        addStatusUpdate('WebSocket error. Falling back to HTTP search.', 'error');
                         resultStats.textContent = 'Error connecting to search service';
                         resultsContainer.innerHTML = `
                             <div class="bg-red-100 text-red-700 p-4 rounded-lg">
@@ -259,17 +363,57 @@
                         
                         // Only show message if it wasn't our own closing
                         if (event.code !== 1000) {
+                            addStatusUpdate('WebSocket connection closed.', 'warning');
                             resultStats.textContent = 'Search connection closed';
                         }
                     };
                 } catch (error) {
                     console.error("Error creating WebSocket:", error);
+                    addStatusUpdate('Error creating WebSocket connection.', 'error');
                     
                     // Fall back to regular search
                     fallbackToRegularSearch();
                 }
             }
             
+            // Function to add status update
+            function addStatusUpdate(message, type = 'info') {
+                // Define colors based on type
+                const colors = {
+                    info: 'bg-blue-500',
+                    success: 'bg-green-500',
+                    warning: 'bg-yellow-500',
+                    error: 'bg-red-500',
+                    pending: 'bg-gray-300'
+                };
+                
+                // Add message to the array
+                statusMessages.push({ message, type, timestamp: new Date() });
+                
+                // Show the status stream if hidden
+                statusStream.classList.remove('hidden');
+                
+                // Create status element
+                const statusElement = document.createElement('div');
+                statusElement.className = 'flex items-center animate-fadeIn';
+                statusElement.innerHTML = `
+                    <div class="w-4 h-4 rounded-full ${colors[type]} mr-2"></div>
+                    <div class="flex-1">
+                        <span class="text-gray-800">${message}</span>
+                        <span class="text-gray-500 text-xs ml-2">${new Date().toLocaleTimeString()}</span>
+                    </div>
+                `;
+                
+                // Add to status content
+                statusContent.appendChild(statusElement);
+                
+                // Auto-scroll to bottom
+                statusContent.scrollTop = statusContent.scrollHeight;
+                
+                return statusElement;
+            }
+            
+            // Modify handleStreamingMessage to update status
             function handleStreamingMessage(message) {
                 // Clear loading skeletons on first message
                 if (resultsReceived === 0) {
@@ -280,6 +424,7 @@
                 switch (message.type) {
                     case 'stats':
                         resultStats.textContent = `Found ${message.data.total} results (${message.data.took}ms)`;
+                        addStatusUpdate(`Search completed: Found ${message.data.total} results`, 'success');
                         
                         if (message.data.total === 0) {
                             resultsContainer.innerHTML = `
@@ -288,6 +433,7 @@
                                     <p class="text-sm text-gray-500 mt-2">Try using different keywords or removing filters</p>
                                 </div>
                             `;
+                            addStatusUpdate('Starting crawler for new content...', 'info');
                         }
                         break;
                         
@@ -300,11 +446,36 @@
                         
                         // Add result to the page
                         renderSingleResult(result);
+                        
+                        // Update status
+                        if (resultsReceived === 1) {
+                            addStatusUpdate('Receiving search results...', 'info');
+                        }
+                        
+                        if (resultsReceived % 5 === 0) {
+                            addStatusUpdate(`Received ${resultsReceived} results so far`, 'success');
+                        }
+                        break;
+                        
+                    case 'crawling':
+                        // Add crawling status update
+                        addStatusUpdate(`Crawler: ${message.data.message}`, 'info');
+                        break;
+                        
+                    case 'processing':
+                        // Add processing status update
+                        addStatusUpdate(`Processing: ${message.data.message}`, 'info');
+                        break;
+                        
+                    case 'indexing':
+                        // Add indexing status update
+                        addStatusUpdate(`Indexing: ${message.data.message}`, 'success');
                         break;
                         
                     case 'status':
                         // Show status message
                         console.log("Status:", message.data.message);
+                        addStatusUpdate(`Status: ${message.data.message}`, 'info');
                         
                         // Update result count if necessary
                         if (resultsReceived === 0) {
@@ -324,6 +495,7 @@
                     case 'error':
                         console.error("Search error:", message.data.message);
                         resultStats.textContent = 'Search error';
+                        addStatusUpdate(`Error: ${message.data.message}`, 'error');
                         resultsContainer.innerHTML = `
                             <div class="bg-red-100 text-red-700 p-4 rounded-lg">
                                 <p>Error: ${message.data.message}</p>
@@ -417,10 +589,24 @@
             
             function fallbackToRegularSearch() {
                 // Fall back to regular search using the API
+                addStatusUpdate('Performing HTTP search...', 'info');
+                
                 simulateSearchRequest(currentQuery)
-                    .then(renderResults)
+                    .then(data => {
+                        addStatusUpdate('HTTP search completed.', 'success');
+                        
+                        // If search has no results and is for a new topic, add status about crawling
+                        if (data.total === 0 && data.crawling_started) {
+                            addStatusUpdate('No results found. Started a crawler job.', 'info');
+                            addStatusUpdate('Crawler is collecting data for "' + currentQuery + '"', 'info');
+                            addStatusUpdate('This may take a few minutes. Results will be indexed automatically.', 'info');
+                        }
+                        
+                        renderResults(data);
+                    })
                     .catch(error => {
                         console.error('Regular search error:', error);
+                        addStatusUpdate('Search failed: ' + error.message, 'error');
                         resultsContainer.innerHTML = `
                             <div class="bg-red-100 text-red-700 p-4 rounded-lg">
                                 <p>Error: ${error.message}</p>
@@ -487,16 +673,58 @@
                 // Clear results and render hits
                 resultsContainer.innerHTML = '';
                 
-                if (!data.hits || data.hits.length === 0) {
-                    resultsContainer.innerHTML = `
-                        <div class="bg-white p-6 rounded-lg shadow-md text-center">
-                            <p class="text-gray-600">No results found for "${currentQuery}"</p>
-                            <p class="text-sm text-gray-500 mt-2">Try using different keywords or removing filters</p>
+                // Check if crawling was started due to no results
+                if (data.crawling_started) {
+                    const crawlingNotice = document.createElement('div');
+                    crawlingNotice.className = 'bg-yellow-100 p-6 rounded-lg shadow-md text-center mb-6';
+                    crawlingNotice.innerHTML = `
+                        <p class="text-yellow-800">No existing results found for "${currentQuery}"</p>
+                        <p class="text-sm text-yellow-700 mt-2">We've started crawling the web for this query. Results will appear here as they're found.</p>
+                        <div class="mt-4">
+                            <div class="animate-pulse bg-yellow-200 h-2 w-full rounded"></div>
                         </div>
+                        <p class="text-xs text-yellow-600 mt-2">Try refreshing in a minute for new results or switch to WebSocket mode for live updates.</p>
                     `;
+                    resultsContainer.appendChild(crawlingNotice);
+                    
+                    // Add button to switch to WebSocket mode for live updates
+                    const liveUpdatesBtn = document.createElement('button');
+                    liveUpdatesBtn.className = 'mt-4 bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 focus:outline-none';
+                    liveUpdatesBtn.textContent = 'Switch to Live Updates';
+                    liveUpdatesBtn.addEventListener('click', function() {
+                        // Close the WebSocket if it exists
+                        if (webSocket && webSocket.readyState !== WebSocket.CLOSED) {
+                            webSocket.close();
+                        }
+                        
+                        // Connect to WebSocket for live updates
+                        const wsURL = getWebSocketURL();
+                        connectWebSocket(wsURL);
+                    });
+                    
+                    crawlingNotice.appendChild(liveUpdatesBtn);
+                    
+                    // Set a timer to refresh results in 30 seconds
+                    setTimeout(() => {
+                        simulateSearchRequest(currentQuery)
+                            .then(renderResults)
+                            .catch(error => console.error('Auto-refresh error:', error));
+                    }, 30000);
+                }
+                
+                if (!data.hits || data.hits.length === 0) {
+                    if (!data.crawling_started) {
+                        resultsContainer.innerHTML = `
+                            <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                                <p class="text-gray-600">No results found for "${currentQuery}"</p>
+                                <p class="text-sm text-gray-500 mt-2">Try using different keywords or removing filters</p>
+                            </div>
+                        `;
+                    }
                     return;
                 }
                 
+                // Render the results
                 data.hits.forEach(hit => {
                     const card = document.createElement('div');
                     card.className = 'bg-white p-6 rounded-lg shadow-md';

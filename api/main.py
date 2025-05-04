@@ -81,6 +81,17 @@ async def search(
         
     try:
         results = search_engine.instant_search(q, filters, page, size)
+        
+        # If no results are found, trigger a crawler job
+        if results["total"] == 0 and page == 0:
+            logger.info(f"No results found for '{q}'. Starting a crawler job.")
+            job_id = start_crawler(seed_urls=None, search_query=q)
+            
+            # Add a note to the results indicating crawling has started
+            results["crawling_started"] = True
+            results["job_id"] = job_id
+            results["message"] = "No existing results found. Started crawling the web for this query."
+        
         return results
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

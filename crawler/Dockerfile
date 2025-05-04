@@ -20,6 +20,9 @@ COPY crawler /app/crawler
 WORKDIR /app/crawler
 RUN pip install -e .
 
+# Install additional dependencies
+RUN pip install redis
+
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV SCRAPY_SETTINGS_MODULE=resource_crawler.settings
