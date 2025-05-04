@@ -219,6 +219,10 @@
                 resultsReceived = 0;
                 allResults = [];
                 
+                // Show status stream
+                statusStream.classList.remove('hidden');
+                addStatusUpdate(`Searching for: "${currentQuery}"`, 'info');
+                
                 // Close previous WebSocket connection if exists
                 if (webSocket && webSocket.readyState !== WebSocket.CLOSED) {
                     webSocket.close();
@@ -282,9 +286,30 @@
                     document.getElementById('http-mode').classList.add('bg-indigo-400');
                 }
                 
-                // Use WebSocket for searching by default
-                const wsURL = getWebSocketURL();
-                connectWebSocket(wsURL);
+                // First try a quick HTTP search to see if we already have results
+                simulateSearchRequest(currentQuery)
+                    .then(data => {
+                        // If we have results, display them
+                        renderResults(data);
+                        
+                        // If few results, also connect to WebSocket for live updates
+                        if (data.total < 5) {
+                            addStatusUpdate('Few results found, connecting to WebSocket for live updates...', 'info');
+                            // Use WebSocket for real-time updates
+                            const wsURL = getWebSocketURL();
+                            connectWebSocket(wsURL);
+                        } else {
+                            addStatusUpdate(`Found ${data.total} results via HTTP search`, 'success');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('HTTP search error:', error);
+                        addStatusUpdate('HTTP search error, trying WebSocket instead...', 'warning');
+                        
+                        // Try WebSocket as fallback
+                        const wsURL = getWebSocketURL();
+                        connectWebSocket(wsURL);
+                    });
             }
             
             function getWebSocketURL() {
@@ -306,8 +331,18 @@
                     addStatusUpdate('Connecting to WebSocket for live updates...', 'pending');
                     webSocket = new WebSocket(url);
                     
+                    // Set a connection timeout
+                    const connectionTimeout = setTimeout(() => {
+                        if (webSocket.readyState !== WebSocket.OPEN) {
+                            addStatusUpdate('WebSocket connection timeout. Falling back to HTTP search.', 'error');
+                            webSocket.close();
+                            fallbackToRegularSearch();
+                        }
+                    }, 5000); // 5 second timeout
+                    
                     // Connection opened
                     webSocket.onopen = function(event) {
+                        clearTimeout(connectionTimeout); // Clear the timeout
                         console.log("WebSocket connection established");
                         addStatusUpdate('WebSocket connected. Waiting for live results...', 'success');
                         
@@ -342,6 +377,7 @@
                     
                     // Handle errors
                     webSocket.onerror = function(error) {
+                        clearTimeout(connectionTimeout); // Clear the timeout
                         console.error("WebSocket error:", error);
                         addStatusUpdate('WebSocket connection error. Retrying...', 'warning');
                         
@@ -351,11 +387,22 @@
                                 const wsURL = getWebSocketURL();
                                 webSocket = new WebSocket(wsURL);
                                 
+                                // Set a second timeout for the retry
+                                const retryTimeout = setTimeout(() => {
+                                    if (webSocket.readyState !== WebSocket.OPEN) {
+                                        addStatusUpdate('WebSocket retry timeout. Falling back to HTTP search.', 'error');
+                                        webSocket.close();
+                                        fallbackToRegularSearch();
+                                    }
+                                }, 5000);
+                                
                                 webSocket.onopen = function() {
+                                    clearTimeout(retryTimeout);
                                     addStatusUpdate('WebSocket reconnected successfully!', 'success');
                                 };
                                 
                                 webSocket.onerror = function() {
+                                    clearTimeout(retryTimeout);
                                     // If second attempt fails, fall back to HTTP
                                     addStatusUpdate('WebSocket reconnection failed. Falling back to HTTP search.', 'error');
                                     fallbackToRegularSearch();
@@ -369,17 +416,18 @@
                     
                     // Connection closed
                     webSocket.onclose = function(event) {
+                        clearTimeout(connectionTimeout); // Clear the timeout
                         console.log("WebSocket connection closed", event);
                         
                         // Only show message if it wasn't our own closing and wasn't already handled by error handler
                         if (event.code !== 1000 && !event.wasClean) {
-                            addStatusUpdate('WebSocket connection closed unexpectedly.', 'warning');
-                            resultStats.textContent = 'Search connection closed';
+                            addStatusUpdate('WebSocket connection closed unexpectedly. Falling back to HTTP search.', 'warning');
+                            fallbackToRegularSearch();
                         }
                     };
                 } catch (error) {
                     console.error("Error creating WebSocket:", error);
-                    addStatusUpdate('Error creating WebSocket connection.', 'error');
+                    addStatusUpdate('Error creating WebSocket connection. Falling back to HTTP search.', 'error');
                     
                     // Fall back to regular search
                     fallbackToRegularSearch();
@@ -523,7 +571,7 @@
             function renderSingleResult(result) {
                 // Create result card
                 const card = document.createElement('div');
-                card.className = 'bg-white p-6 rounded-lg shadow-md mb-4';
+                card.className = 'bg-white p-6 rounded-lg shadow-md mb-4 animate-fadeIn';
                 card.dataset.resultId = result.id;
                 
                 // Create type badge
@@ -567,111 +615,110 @@
                 if (langBadge) card.querySelector('.badges').appendChild(langBadge);
                 card.querySelector('.badges').appendChild(sourceBadge);
                 
-                // Add card to results container
-                if (result.source === 'realtime') {
-                    // Add new results at the top with animation
-                    card.classList.add('animate-fadeIn');
-                    resultsContainer.prepend(card);
-                } else {
-                    resultsContainer.appendChild(card);
+                // Add highlights if available
+                if (result.highlight) {
+                    const highlightsDiv = document.createElement('div');
+                    highlightsDiv.className = 'mt-4 pt-4 border-t border-gray-200';
+                    
+                    if (result.highlight.content) {
+                        const contentHighlight = document.createElement('div');
+                        contentHighlight.className = 'mb-3';
+                        contentHighlight.innerHTML = `
+                            <div class="text-xs text-gray-500 mb-1">Content Preview:</div>
+                            <div class="text-sm text-gray-700">${result.highlight.content[0]}</div>
+                        `;
+                        highlightsDiv.appendChild(contentHighlight);
+                    }
+                    
+                    if (result.highlight.code_snippets && result.highlight.code_snippets.length > 0) {
+                        const snippetHighlight = document.createElement('div');
+                        snippetHighlight.className = 'mb-3';
+                        snippetHighlight.innerHTML = `
+                            <div class="text-xs text-gray-500 mb-1">Code Snippet:</div>
+                            <pre class="code-snippet text-sm">${result.highlight.code_snippets[0]}</pre>
+                        `;
+                        highlightsDiv.appendChild(snippetHighlight);
+                    }
+                    
+                    card.appendChild(highlightsDiv);
                 }
                 
-                // Sort results if needed
-                if (currentSort !== 'relevance') {
-                    sortResults();
-                }
+                resultsContainer.appendChild(card);
             }
             
             function sortResults() {
-                // Sort the allResults array
-                switch (currentSort) {
-                    case 'relevance':
-                        allResults.sort((a, b) => b.score - a.score);
-                        break;
-                    case 'date':
-                        allResults.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
-                        break;
-                    case 'quality':
-                        allResults.sort((a, b) => (b.quality_score || 0) - (a.quality_score || 0));
-                        break;
+                // Only sort if we have results
+                if (!allResults || allResults.length === 0) {
+                    return;
                 }
                 
-                // Clear and re-render all results
+                // Sort based on the current sort option
+                allResults.sort((a, b) => {
+                    switch (currentSort) {
+                        case 'quality':
+                            return (b.quality_score || 0) - (a.quality_score || 0);
+                        case 'date':
+                            // Parse dates or use current time as fallback
+                            const dateA = a.timestamp ? new Date(a.timestamp) : new Date();
+                            const dateB = b.timestamp ? new Date(b.timestamp) : new Date();
+                            return dateB - dateA;
+                        case 'relevance':
+                        default:
+                            // For relevance, we use the score
+                            return (b.score || 0) - (a.score || 0);
+                    }
+                });
+                
+                // Re-render the results
                 resultsContainer.innerHTML = '';
-                allResults.forEach(renderSingleResult);
+                allResults.forEach(result => renderSingleResult(result));
             }
             
             function fallbackToRegularSearch() {
-                // Fall back to regular search using the API
-                addStatusUpdate('Performing HTTP search...', 'info');
+                addStatusUpdate('Falling back to HTTP search...', 'info');
                 
+                // Make a regular HTTP request to the search API
                 simulateSearchRequest(currentQuery)
-                    .then(data => {
-                        addStatusUpdate('HTTP search completed.', 'success');
-                        
-                        // If search has no results and is for a new topic, add status about crawling
-                        if (data.total === 0 && data.crawling_started) {
-                            addStatusUpdate('No results found. Started a crawler job.', 'info');
-                            addStatusUpdate('Crawler is collecting data for "' + currentQuery + '"', 'info');
-                            addStatusUpdate('This may take a few minutes. Results will be indexed automatically.', 'info');
-                        }
-                        
-                        renderResults(data);
-                    })
+                    .then(renderResults)
                     .catch(error => {
-                        console.error('Regular search error:', error);
-                        addStatusUpdate('Search failed: ' + error.message, 'error');
+                        console.error('HTTP search error:', error);
+                        addStatusUpdate('HTTP search error: ' + error.message, 'error');
+                        
+                        // Show error message in results container
                         resultsContainer.innerHTML = `
-                            <div class="bg-red-100 text-red-700 p-4 rounded-lg">
-                                <p>Error: ${error.message}</p>
-                                <p class="mt-2 text-sm">Please check the console for more details.</p>
+                            <div class="bg-white p-6 rounded-lg shadow-md text-center">
+                                <p class="text-red-600">Error searching for "${currentQuery}"</p>
+                                <p class="text-sm text-gray-500 mt-2">Please try again later</p>
                             </div>
                         `;
-                        resultStats.textContent = 'Search failed';
                     });
             }
             
             function simulateSearchRequest(query) {
-                // Build query params
-                const params = new URLSearchParams({
-                    q: query,
-                    page: currentPage,
-                    size: 10
-                });
+                // Show loading state
+                resultStats.textContent = 'Searching...';
+                
+                // Build the search URL with filters
+                let searchUrl = `http://${window.location.hostname}:8000/search?q=${encodeURIComponent(query)}`;
                 
                 // Add filters if any
-                Object.keys(currentFilters).forEach(key => {
-                    if (currentFilters[key]) {
-                        params.append(key, currentFilters[key]);
-                    }
-                });
+                if (currentFilters.type) {
+                    searchUrl += `&type=${encodeURIComponent(currentFilters.type)}`;
+                }
+                if (currentFilters.language) {
+                    searchUrl += `&language=${encodeURIComponent(currentFilters.language)}`;
+                }
                 
-                // Make API call to the backend
-                const apiUrl = `http://${window.location.hostname}:8000/search?${params}`;
-                console.log(`Making API call to: ${apiUrl}`);
+                // Add pagination
+                searchUrl += `&page=${currentPage}&size=10`;
                 
-                return fetch(apiUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json'
-                    },
-                    mode: 'cors',
-                    credentials: 'omit'
-                })
+                // Make the actual fetch request
+                return fetch(searchUrl)
                     .then(response => {
-                        console.log('API response status:', response.status);
                         if (!response.ok) {
-                            throw new Error(`Search failed: ${response.status} ${response.statusText}`);
+                            throw new Error(`HTTP error ${response.status}`);
                         }
                         return response.json();
-                    })
-                    .then(data => {
-                        console.log('API response data:', data);
-                        return data;
-                    })
-                    .catch(error => {
-                        console.error('API error:', error);
-                        throw error;
                     });
             }
             
