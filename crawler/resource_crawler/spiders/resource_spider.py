@@ -52,18 +52,71 @@ class ResourceSpider(scrapy.Spider):
         super(ResourceSpider, self).__init__(*args, **kwargs)
         self.search_query = search_query
         
-        # Handle start URLs from command line
-        if start_urls:
-            if isinstance(start_urls, str):
-                self.start_urls = start_urls.split(',')
-            elif isinstance(start_urls, (list, tuple)):
-                self.start_urls = list(start_urls)
+        # Use search query to build better starting URLs if provided
+        if search_query:
+            logger.info(f"Initializing spider with search query: {search_query}")
+            
+            # Add specific search URLs for different sites based on the query
+            search_specific_urls = [
+                # Major programming resource sites
+                f'https://github.com/topics/{search_query}',
+                f'https://stackoverflow.com/questions/tagged/{search_query}',
+                f'https://dev.to/t/{search_query}',
+                f'https://medium.com/search?q={search_query}',
+                f'https://www.geeksforgeeks.org/search/{search_query}',
+                f'https://www.freecodecamp.org/news/search/?query={search_query}',
+                f'https://www.digitalocean.com/community/tutorials?q={search_query}',
+                f'https://realpython.com/search?q={search_query}',
+                f'https://www.tutorialspoint.com/index.htm?search={search_query}',
+                f'https://hackernoon.com/search?query={search_query}',
+                f'https://substack.com/search?q={search_query}',
+                
+                # Documentation sites
+                f'https://docs.python.org/3/search.html?q={search_query}',
+                f'https://developer.mozilla.org/en-US/search?q={search_query}',
+                f'https://www.w3schools.com/search/search.php?q={search_query}',
+                
+                # General search engines
+                f'https://www.google.com/search?q={search_query}+programming+tutorial',
+                f'https://www.google.com/search?q={search_query}+coding+guide',
+                f'https://www.google.com/search?q={search_query}+programming+examples',
+                f'https://www.bing.com/search?q={search_query}+programming+guide',
+                f'https://duckduckgo.com/?q={search_query}+programming',
+                
+                # Forums
+                f'https://www.reddit.com/search/?q={search_query}+programming',
+                f'https://news.ycombinator.com/item?id=search&q={search_query}',
+                
+                # Video platforms
+                f'https://www.youtube.com/results?search_query={search_query}+programming+tutorial',
+                
+                # University course repositories
+                f'https://ocw.mit.edu/search/?q={search_query}',
+                f'https://www.coursera.org/search?query={search_query}',
+            ]
+            
+            # Handle start URLs from command line
+            if start_urls:
+                if isinstance(start_urls, str):
+                    self.start_urls = start_urls.split(',')
+                elif isinstance(start_urls, (list, tuple)):
+                    self.start_urls = list(start_urls)
+                else:
+                    self.start_urls = search_specific_urls
+            else:
+                self.start_urls = search_specific_urls
+        else:
+            # If no search query, use the provided start_urls or default ones
+            if start_urls:
+                if isinstance(start_urls, str):
+                    self.start_urls = start_urls.split(',')
+                elif isinstance(start_urls, (list, tuple)):
+                    self.start_urls = list(start_urls)
+                else:
+                    self.start_urls = self.default_start_urls
             else:
                 self.start_urls = self.default_start_urls
-        else:
-            self.start_urls = self.default_start_urls
             
-        logger.info(f"Initialized spider with search query: {search_query}")
         logger.info(f"Starting URLs: {self.start_urls}")
     
     def parse(self, response):
@@ -77,31 +130,133 @@ class ResourceSpider(scrapy.Spider):
             yield self.extract_resource(response)
     
     def should_follow(self, url):
-        # Define rules for which URLs to follow
-        # Avoid irrelevant pages, focus on content-rich areas
-        relevant_patterns = [
-            r'tutorial', r'guide', r'doc', r'example', r'resource', 
-            r'learn', r'library', r'framework', r'tool', r'cheatsheet'
+        """
+        Determine whether to follow a URL during crawling.
+        More permissive to allow broader internet searches.
+        """
+        # Skip non-HTTP links, images, etc.
+        if not url or not url.startswith(('http://', 'https://')):
+            return False
+            
+        # Skip file downloads
+        file_extensions = ['.pdf', '.zip', '.tar', '.gz', '.rar', '.jpg', '.jpeg', '.png', '.gif', '.svg']
+        if any(url.lower().endswith(ext) for ext in file_extensions):
+            return False
+            
+        # Patterns for potentially valuable content
+        valuable_patterns = [
+            # Programming-related
+            r'tutorial', r'guide', r'learn', r'example', r'code', r'sample',
+            r'resource', r'document', r'reference', r'cheatsheet', r'lesson',
+            r'course', r'class', r'education', r'curriculum', r'bootcamp',
+            # Technology areas
+            r'api', r'library', r'framework', r'tool', r'development', r'programming',
+            r'software', r'developer', r'coding', r'engineer', r'computer',
+            # Formats
+            r'blog', r'article', r'post', r'forum', r'discussion', r'question', 
+            r'answer', r'explanation', r'overview'
         ]
         
-        # Check if URL matches any relevant pattern
-        if any(re.search(pattern, url, re.I) for pattern in relevant_patterns):
-            # Check if URL is from allowed domains
-            domain = urlparse(url).netloc
-            if any(allowed in domain for allowed in self.allowed_domains):
-                return True
+        # General programming domains to prioritize
+        priority_domains = [
+            'github.com', 'stackoverflow.com', 'dev.to', 'medium.com', 
+            'freecodecamp.org', 'realpython.com', 'digitalocean.com',
+            'tutorialspoint.com', 'w3schools.com', 'mozilla.org', 'youtube.com',
+            'reddit.com', 'hackernews.com', 'substack.com', 'docs.google.com'
+        ]
+        
+        # Get the domain
+        url_domain = urlparse(url).netloc
+        
+        # Always follow links from priority domains
+        if any(domain in url_domain for domain in priority_domains):
+            return True
+            
+        # Follow links related to the search query if provided
+        if self.search_query and self.search_query.lower() in url.lower():
+            return True
+            
+        # Follow URLs that match valuable patterns
+        if any(re.search(pattern, url, re.I) for pattern in valuable_patterns):
+            return True
+            
+        # Be more permissive for URLs that might lead to valuable content
+        if 'blog' in url_domain or 'docs' in url_domain or 'wiki' in url_domain:
+            return True
+            
+        # Follow more links if we're on a page that is likely resource-related
+        # This helps with discovery of new resources
         return False
     
     def is_resource_page(self, response):
-        # Detect if a page contains valuable resources
+        """
+        Detect if a page contains valuable programming resources.
+        More inclusive to catch a wider variety of content.
+        """
+        # Check for common programming content indicators
         resource_indicators = [
-            response.css('pre'), response.css('code'),
-            response.xpath('//h1[contains(text(), "Guide")]'),
-            response.xpath('//h1[contains(text(), "Tutorial")]'),
-            response.css('article'), response.css('.markdown-body')
+            # Code examples
+            response.css('pre'), response.css('code'), 
+            response.css('.highlight'), response.css('.code'),
+            
+            # Documentation structures
+            response.css('.markdown-body'), response.css('.documentation'),
+            response.css('.api-docs'), response.css('.reference'),
+            
+            # Tutorials and guides
+            response.xpath('//h1[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "guide")]'),
+            response.xpath('//h1[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "tutorial")]'),
+            response.xpath('//h1[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "how to")]'),
+            
+            # Common content containers
+            response.css('article'), response.css('.post'), 
+            response.css('.entry'), response.css('.content'),
+            response.css('#content'), response.css('main'),
+            
+            # Technical blogs
+            response.css('.blog-post'), response.css('.article'),
+            
+            # Forums and Q&A
+            response.css('.question'), response.css('.answer'),
+            response.css('.post-text'), response.css('.comment-body'),
+            
+            # Educational content
+            response.css('.lesson'), response.css('.course'),
+            response.css('.curriculum'), response.css('.tutorial'),
         ]
         
-        return any(indicator for indicator in resource_indicators)
+        # If any indicators are found, this might be a resource page
+        if any(indicator for indicator in resource_indicators):
+            return True
+            
+        # Check for keywords in URLs that suggest valuable content
+        url = response.url.lower()
+        valuable_url_patterns = [
+            'tutorial', 'guide', 'learn', 'how-to', 'lesson', 
+            'example', 'documentation', 'reference', 'course'
+        ]
+        if any(pattern in url for pattern in valuable_url_patterns):
+            return True
+            
+        # Check meta tags for relevant keywords
+        meta_keywords = response.css('meta[name="keywords"]::attr(content)').get() or ""
+        meta_description = response.css('meta[name="description"]::attr(content)').get() or ""
+        tech_keywords = ['programming', 'developer', 'code', 'software', 'engineering', 'tutorial', 'api', 'language']
+        
+        if any(keyword in meta_keywords.lower() for keyword in tech_keywords) or \
+           any(keyword in meta_description.lower() for keyword in tech_keywords):
+            return True
+            
+        # Check for presence of the search query in title or headers
+        if self.search_query:
+            title = response.css('title::text').get() or ""
+            h1_text = ' '.join(response.css('h1::text').getall())
+            
+            if self.search_query.lower() in title.lower() or self.search_query.lower() in h1_text.lower():
+                return True
+                
+        # Default to False if no indicators match
+        return False
     
     def extract_resource(self, response):
         resource = ResourceItem()
@@ -122,13 +277,59 @@ class ResourceSpider(scrapy.Spider):
         title = ' '.join(title.split())
         description = ' '.join(description.split())
         
-        # Detect programming language
-        languages = ['python', 'javascript', 'java', 'cpp', 'c++', 'ruby', 'php', 'golang', 'rust']
+        # Detect programming language/technology
+        languages = [
+            # Programming languages
+            'python', 'javascript', 'typescript', 'java', 'kotlin', 'c', 'c++', 'c#', 
+            'go', 'golang', 'rust', 'swift', 'objective-c', 'ruby', 'php', 'scala', 
+            'perl', 'haskell', 'clojure', 'erlang', 'elixir', 'dart', 'r', 'julia',
+            'fortran', 'assembly', 'bash', 'shell', 'powershell', 'matlab', 'zig',
+            
+            # Web technologies
+            'html', 'css', 'sass', 'less', 'jquery', 'react', 'vue', 'angular', 
+            'svelte', 'ember', 'backbone', 'next.js', 'nuxt.js', 'django', 'flask', 
+            'fastapi', 'express', 'spring', 'laravel', 'symfony', 'rails',
+            
+            # Mobile
+            'android', 'ios', 'react native', 'flutter', 'xamarin',
+            
+            # Databases and storage
+            'sql', 'mysql', 'postgresql', 'mongodb', 'sqlite', 'redis', 'cassandra',
+            'dynamodb', 'firebase', 'supabase', 'mariadb', 'oracle', 'neo4j', 'graphql',
+            
+            # Cloud and infrastructure
+            'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform', 'serverless',
+            'devops', 'cicd', 'jenkins', 'github actions', 'gitlab ci',
+            
+            # AI and data science
+            'machine learning', 'ai', 'artificial intelligence', 'data science',
+            'tensorflow', 'pytorch', 'keras', 'scikit-learn', 'pandas', 'numpy',
+            
+            # Concepts and paradigms
+            'algorithm', 'data structure', 'functional programming', 'oop',
+            'concurrency', 'async', 'mvcc', 'microservices', 'rest api', 'websocket',
+            'security', 'authentication', 'encryption', 'blockchain', 'web3',
+            
+            # Tools and productivity
+            'git', 'vscode', 'vim', 'emacs', 'intellij', 'eclipse', 'atom',
+            'testing', 'debugging', 'performance', 'optimization'
+        ]
         detected_languages = [lang for lang in languages if lang.lower() in (title + ' ' + description).lower()]
         
-        # If search query is provided, only process content related to that query
-        if self.search_query and self.search_query.lower() not in (title + ' ' + description).lower():
-            return None
+        # If search query is provided, verify it's somewhat related to the content
+        if self.search_query:
+            # Add the search query as a detected language if it's not already included
+            # This helps ensure we're finding content related to our search
+            if self.search_query.lower() not in [l.lower() for l in detected_languages]:
+                detected_languages.append(self.search_query.lower())
+            
+            # Check if content is related to the search query
+            if self.search_query.lower() not in (title + ' ' + description).lower():
+                # Check if query appears in the page content
+                page_text = ' '.join(response.css('body ::text').getall())
+                if self.search_query.lower() not in page_text.lower():
+                    # Skip if not related to search query at all
+                    return None
         
         # Extract main content based on common content containers
         content_selectors = [
