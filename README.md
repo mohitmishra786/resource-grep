@@ -13,43 +13,38 @@ Resource Grep is a real-time search engine for programming resources, designed t
 - **Code snippets** - Extract and view relevant code snippets from resources
 - **Smart quality scoring** - Resources are scored by relevance and quality
 
-## Architecture
+## Documentation
 
-Resource Grep uses a modern microservices architecture with Docker Compose:
+- [**API Reference**](API.md) - Complete reference for the Resource Grep HTTP and WebSocket APIs
+- [**Architecture**](ARCHITECTURE.md) - Detailed technical architecture and system design
+- [**Deployment Guide**](DEPLOYMENT.md) - Instructions for deploying Resource Grep in different environments
+- [**Operations Playbook**](PLAYBOOK.md) - Comprehensive guide for operating and troubleshooting
+- [**Contributing Guide**](CONTRIBUTING.md) - Guidelines for contributing to Resource Grep
+- [**System Statistics**](STATISTICS.md) - Current data statistics and performance metrics
 
-```mermaid
-graph TD
-    User[User/Client] --> Frontend[Static Frontend]
-    
-    Frontend --> API[RESTful API]
-    Frontend --> StreamingAPI[WebSocket API]
-    
-    API --> SearchEngine[Search Engine]
-    StreamingAPI --> SearchEngine
-    
-    SearchEngine --> Elasticsearch[(Elasticsearch)]
-    
-    API -- "Start Crawler" --> CrawlerService[Crawler Service]
-    StreamingAPI -- "Live Results" --> Redis[(Redis)]
-    
-    CrawlerService --> Scrapy[Scrapy Spiders]
-    Scrapy --> Internet[Internet Resources]
-    
-    Scrapy -- "Index Results" --> Elasticsearch
-    Scrapy -- "Publish Updates" --> Redis
-    
-    Redis -- "Subscribe Updates" --> StreamingAPI
-```
+## Quick Start
 
-### Components
+### Prerequisites
 
-- **Frontend**: Static HTML/JS/CSS served by Nginx with automatic fallback between HTTP and WebSocket modes
-- **API**: FastAPI backend for HTTP search queries
-- **Streaming API**: WebSocket server for real-time search results
-- **Crawler**: Advanced Scrapy-based web crawler with comprehensive internet search capabilities
-- **Search Engine**: Elasticsearch-based search with relevance scoring
-- **Redis**: Used for messaging and real-time updates
-- **Elasticsearch**: Stores and indexes resource data
+- Docker and Docker Compose
+
+### Running the Project
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/username/resource-grep.git
+   cd resource-grep
+   ```
+
+2. Start the services:
+   ```
+   docker-compose up -d
+   ```
+
+3. Access the frontend:
+   ```
+   http://localhost:80
+   ```
 
 ## How it Works
 
@@ -75,41 +70,49 @@ graph TD
    - Resources are scored for relevance to the query
    - Special handling for legacy programming languages
 
-## Getting Started
+## System Architecture
 
-### Prerequisites
+Resource Grep uses a modern microservices architecture with Docker Compose:
 
-- Docker and Docker Compose
-
-### Running the Project
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/username/resource-grep.git
-   cd resource-grep
-   ```
-
-2. Start the services:
-   ```
-   docker-compose up -d
-   ```
-
-3. Access the frontend:
-   ```
-   http://localhost:3000
-   ```
-
-### Search Endpoints
-
-#### HTTP Search API
 ```
-GET http://localhost:8000/search?q=SEARCH_TERM
+┌─────────────────────────────────────┐
+│           Docker Compose            │
+├─────────┬─────────┬─────────┬───────┤
+│  API &  │         │         │       │
+│ Stream  │ Elastic │  Redis  │Crawler│
+│ Services│ search  │         │       │
+└─────────┴─────────┴─────────┴───────┘
 ```
 
-#### WebSocket API (for live updates)
+### Components
+
+- **Frontend**: Static HTML/JS/CSS served by Nginx with automatic fallback between HTTP and WebSocket modes
+- **API**: FastAPI backend for HTTP search queries
+- **Streaming API**: WebSocket server for real-time search results
+- **Crawler**: Advanced Scrapy-based web crawler with comprehensive internet search capabilities
+- **Search Engine**: Elasticsearch-based search with relevance scoring
+- **Redis**: Used for messaging and real-time updates
+- **Elasticsearch**: Stores and indexes resource data
+
+For more detailed information about the architecture, see the [ARCHITECTURE.md](ARCHITECTURE.md) document.
+
+## API Examples
+
+### HTTP Search API
+```bash
+curl -X GET "http://localhost:8000/search?q=python+tutorial"
 ```
-ws://localhost:8001/ws/search?query=SEARCH_TERM
+
+### WebSocket API (for live updates)
+```javascript
+const ws = new WebSocket('ws://localhost:8001/ws/search?query=python+tutorial');
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('New result:', data);
+};
 ```
+
+For a complete API reference, see the [API.md](API.md) document.
 
 ## Advanced Features
 
@@ -130,41 +133,37 @@ The crawler employs sophisticated strategies to find the most relevant resources
    - Legacy programming resources
    - Academic and research sites
    
-3. **Smart URL Selection**: Dynamically decides which links to follow based on:
-   - Relevance to the search query
-   - Domain reputation
-   - Content quality indicators
-   - Programming-related path components
-   
-4. **Resource Detection**: Uses multiple signals to identify valuable content:
+3. **Resource Detection**: Uses multiple signals to identify valuable content:
    - Presence of code snippets
    - Technical keyword density
    - Page structure analysis
    - Domain authority
    - Special handling for legacy programming languages
 
-### Comprehensive Resource Types
+## Project Structure
 
-Resource Grep indexes a wide variety of programming resources:
+```
+resource-grep/
+├── api/                 # HTTP API service
+├── crawler/             # Web crawler based on Scrapy
+├── streaming/           # WebSocket streaming service
+├── static/              # Frontend static files
+├── elasticsearch/       # Elasticsearch mappings and config
+├── scripts/             # Utility scripts
+├── tests/               # Test files
+├── docker-compose.yml   # Docker Compose configuration
+├── Dockerfile.*         # Dockerfiles for each service
+├── README.md            # This file
+├── ARCHITECTURE.md      # Architecture documentation
+├── API.md               # API reference
+├── DEPLOYMENT.md        # Deployment guide
+├── PLAYBOOK.md          # Operations playbook
+└── CONTRIBUTING.md      # Contributing guidelines
+```
 
-- **Tutorials and guides**
-- **Official documentation**
-- **Code repositories**
-- **Blog articles**
-- **Forum discussions**
-- **Video tutorials** (metadata)
-- **Educational courses**
-- **Reference materials**
-- **Legacy programming resources**
-- **Academic papers and research**
+## Contributing
 
-## Technical Documentation
-
-For detailed technical information about the system architecture, components, and implementation details, see the [ARCHITECTURE.md](ARCHITECTURE.md) file.
-
-## Project Status
-
-This project is actively developed. The system currently crawls resources for all programming languages and technologies, with special handling for both modern and legacy languages.
+We welcome contributions to Resource Grep! Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to get started.
 
 ## License
 
