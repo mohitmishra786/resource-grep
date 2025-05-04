@@ -71,7 +71,7 @@ async def search(
     size: int = Query(10, ge=1, le=50, description="Results per page")
 ):
     """
-    Search for resources with instant results
+    Search for resources with instant results and trigger real-time crawling for new topics
     """
     filters = {}
     if type:
@@ -80,20 +80,27 @@ async def search(
         filters["language"] = language
         
     try:
+        # First check if any results exist for this query
         results = search_engine.instant_search(q, filters, page, size)
         
-        # If no results are found, trigger a crawler job
-        if results["total"] == 0 and page == 0:
-            logger.info(f"No results found for '{q}'. Starting a crawler job.")
+        # If no results are found or very few results, trigger a crawler job
+        # This ensures we're constantly improving our index with fresh content
+        if results["total"] < 5 and page == 0:
+            logger.info(f"Few or no results found for '{q}'. Starting a crawler job.")
             job_id = start_crawler(seed_urls=None, search_query=q)
             
             # Add a note to the results indicating crawling has started
             results["crawling_started"] = True
             results["job_id"] = job_id
-            results["message"] = "No existing results found. Started crawling the web for this query."
+            results["message"] = "Few or no existing results found. Started crawling the web for this query."
+            
+            # If we have absolutely no results, let the user know this will take some time
+            if results["total"] == 0:
+                results["instructions"] = "Please check back later or use the WebSocket mode for live updates as we crawl the web for this topic."
         
         return results
     except Exception as e:
+        logger.error(f"Search error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/crawler/start")

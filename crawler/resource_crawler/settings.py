@@ -12,11 +12,11 @@ USER_AGENT = 'Mozilla/5.0 (compatible; ResourceCrawler/1.0; +http://example.com)
 ROBOTSTXT_OBEY = True
 
 # Configure maximum concurrent requests  
-CONCURRENT_REQUESTS = 16  
-CONCURRENT_REQUESTS_PER_DOMAIN = 8
+CONCURRENT_REQUESTS = 32  
+CONCURRENT_REQUESTS_PER_DOMAIN = 16
 
 # Configure a delay for requests for the same website  
-DOWNLOAD_DELAY = 1  
+DOWNLOAD_DELAY = 0.5  
 RANDOMIZE_DOWNLOAD_DELAY = True
 
 # Disable cookies  
@@ -39,7 +39,7 @@ LOG_LEVEL = 'INFO'
 LOG_FORMAT = '%(asctime)s [%(name)s] %(levelname)s: %(message)s'
 
 # Configure depth
-DEPTH_LIMIT = 3
+DEPTH_LIMIT = 5  # Increased from 3 to allow deeper crawling
 DEPTH_PRIORITY = 1
 SCHEDULER_DISK_QUEUE = 'scrapy.squeues.PickleLifoDiskQueue'
 SCHEDULER_MEMORY_QUEUE = 'scrapy.squeues.LifoMemoryQueue'
@@ -50,16 +50,19 @@ RETRY_TIMES = 3
 RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]
 
 # Configure timeouts
-DOWNLOAD_TIMEOUT = 15
+DOWNLOAD_TIMEOUT = 20  # Increased from 15 to allow more time for responses
 
-# Configure allowed domains
+# Configure allowed domains - expanded to include more sites
 ALLOWED_DOMAINS = [
-    'geeksforgeeks.org',
-    'realpython.com',
-    'python.org',
-    'w3schools.com',
-    'github.com',
+    # These are used only for reference in the spider's logic - not as strict limitations
+    # The spider's should_follow method has been updated to allow all domains
 ]
+
+# Maximum number of pages to crawl per spider
+CLOSESPIDER_PAGECOUNT = 2000  # Set a reasonable limit to prevent infinite crawling
+
+# Maximum time the spider is allowed to run (in seconds)
+CLOSESPIDER_TIMEOUT = 3600  # 1 hour - adjust as needed
 
 # Configure signals
 SIGNALS_ENABLED = False
