@@ -1,209 +1,353 @@
-# Resource Grep: Technical Architecture
+# Resource Grep Architecture
 
-Resource Grep is a real-time search engine for programming resources that crawls the web to find and index programming-related content. This document explains the technical architecture and components of the system.
+This document describes the architecture of Resource Grep, a real-time search engine for programming resources.
 
 ## System Overview
 
-Resource Grep consists of several microservices that work together to provide real-time search capabilities for programming resources. The system is built with a focus on scalability, extensibility, and performance.
+Resource Grep is designed as a distributed system composed of several microservices that work together to provide real-time search capabilities. The system follows an event-driven architecture to enable asynchronous processing, scalability, and real-time updates.
 
-```mermaid
-graph TD
-    User[User/Client] --> Frontend[Static Frontend]
-    
-    Frontend --> API[RESTful API]
-    Frontend --> StreamingAPI[WebSocket API]
-    
-    API --> SearchEngine[Search Engine]
-    StreamingAPI --> SearchEngine
-    
-    SearchEngine --> Elasticsearch[(Elasticsearch)]
-    
-    API -- "Start Crawler" --> CrawlerService[Crawler Service]
-    StreamingAPI -- "Live Results" --> Redis[(Redis)]
-    
-    CrawlerService --> Scrapy[Scrapy Spiders]
-    Scrapy --> Internet[Internet Resources]
-    
-    Scrapy -- "Index Results" --> Elasticsearch
-    Scrapy -- "Publish Updates" --> Redis
-    
-    Redis -- "Subscribe Updates" --> StreamingAPI
-    
-    subgraph Data Sources
-        Internet
-    end
-    
-    subgraph Storage Layer
-        Elasticsearch
-        Redis
-    end
-    
-    subgraph Service Layer
-        API
-        SearchEngine
-        StreamingAPI
-        CrawlerService
-        Scrapy
-    end
-    
-    subgraph Presentation Layer
-        Frontend
-        User
-    end
-```
+![Architecture Diagram](docs/images/architecture.png)
 
 ## Core Components
 
-### 1. Frontend
+### 1. Web Interface
 
-A static HTML/CSS/JavaScript application that provides a user interface for searching programming resources. The frontend communicates with the API for traditional request-response interactions and with the Streaming API for real-time updates.
+- **Technology**: HTML/CSS/JavaScript (vanilla)
+- **Purpose**: Provides the user interface for searching resources
+- **Features**:
+  - Instant search with real-time updates
+  - Resource filtering and sorting
+  - WebSocket-based real-time results
+  - Fallback to HTTP search when WebSocket is unavailable
+  - Resource display with syntax highlighting for code snippets
 
-**Technologies:**
-- HTML5, CSS3, JavaScript
-- WebSocket for real-time communication
+### 2. API Gateway
 
-### 2. API Service
+- **Technology**: FastAPI (Python)
+- **Purpose**: Serves as the entry point for all client requests
+- **Features**:
+  - RESTful API for search queries
+  - WebSocket support for real-time search results
+  - Request validation and authentication
+  - Rate limiting
+  - Response caching for popular queries
+  - Load balancing across search nodes
 
-A RESTful API built with FastAPI that handles search requests and crawler management. The API serves as the primary entry point for client applications to interact with the system.
+### 3. Search Service
 
-**Technologies:**
-- FastAPI (Python)
-- RESTful API design
+- **Technology**: Elasticsearch + Python
+- **Purpose**: Provides search functionality across indexed resources
+- **Features**:
+  - Full-text search with highlighting
+  - Faceted search (by language, resource type, etc.)
+  - Relevance scoring based on content quality and popularity
+  - Language-specific tokenization for code search
+  - Query expansion for programming terminology
 
-**Endpoints:**
-- `/search` - Search for resources
-- `/crawler/start` - Start a new crawler job
-- `/status` - Get system status
+### 4. Resource Crawler
 
-### 3. Streaming API
+- **Technology**: Scrapy (Python)
+- **Purpose**: Discovers and extracts programming resources from the web
+- **Features**:
+  - Depth-first crawling of programming websites
+  - Search engine integration for seed URLs
+  - Resource extraction with heuristic detection
+  - Content extraction including code snippets
+  - Language and framework detection
+  - Quality scoring for discovered resources
+  - Respects robots.txt by default, with override options
+  - Enhanced support for legacy programming languages (COBOL, FORTRAN, etc.)
 
-A WebSocket-based API that provides real-time updates for search results as they are discovered by the crawler. This allows clients to receive instant updates without polling.
+### 5. Resource Processor
 
-**Technologies:**
-- FastAPI (Python)
-- WebSockets
-- Redis Pub/Sub
+- **Technology**: Python
+- **Purpose**: Processes and enriches crawled resources
+- **Features**:
+  - Content cleaning and normalization
+  - Resource type classification (tutorial, documentation, article, etc.)
+  - Code snippet extraction and language detection
+  - Quality scoring based on multiple heuristics
+  - Duplicate detection
+  - Metadata extraction (authors, timestamps, frameworks, etc.)
 
-**Endpoints:**
-- `/ws/search` - WebSocket endpoint for live search results
+### 6. Indexing Service
 
-### 4. Search Engine
+- **Technology**: Python + Elasticsearch client
+- **Purpose**: Indexes processed resources into the search engine
+- **Features**:
+  - Custom mappings for code-specific search
+  - Bulk indexing for efficiency
+  - Language-specific analyzers
+  - Versioned indexing to support schema evolution
+  - Near real-time indexing for fresh results
 
-A component responsible for querying Elasticsearch and returning relevant results based on various criteria, including text matching, relevance scoring, and filtering.
+### 7. Job Queue
 
-**Technologies:**
-- Elasticsearch Python client
-- Vector search capabilities
-- Relevance scoring algorithms
+- **Technology**: Redis
+- **Purpose**: Manages crawl jobs and message passing between services
+- **Features**:
+  - Priority-based crawl job scheduling
+  - Distributed message passing
+  - Pub/Sub for real-time updates
+  - Job status tracking
 
-### 5. Crawler Service
+### 8. Streaming Service
 
-A distributed web crawler that fetches and processes web pages, extracts relevant information, and indexes it in Elasticsearch. The crawler is designed to be scalable and fault-tolerant.
-
-**Components:**
-- **Coordinator**: Manages crawler jobs and distributes work
-- **Scrapy Spiders**: Process web pages and extract information
-- **Resource Pipeline**: Processes and indexes extracted data
-
-**Technologies:**
-- Scrapy framework
-- Python
-- Distributed crawling architecture
-
-### 6. Storage Layer
-
-#### Elasticsearch
-
-The primary data store for indexed resources. Elasticsearch provides powerful search capabilities, including full-text search, faceted search, and relevance scoring.
-
-**Data Model:**
-- Resource index with fields for URL, title, description, content, code snippets, etc.
-- Relevance scoring based on multiple factors
-- Text analysis optimized for programming-related content
-
-#### Redis
-
-A high-performance in-memory data store used for:
-- Real-time messaging via Pub/Sub
-- Caching frequently accessed data
-- Coordinating distributed crawler jobs
+- **Technology**: FastAPI (Python) + WebSockets
+- **Purpose**: Provides real-time search results via WebSockets
+- **Features**:
+  - Search result streaming
+  - Status updates
+  - Multi-client broadcasting
+  - Connection management
 
 ## Data Flow
 
-### Search Flow
+1. **Search Flow**:
+   - User enters a search query in the web interface
+   - Query is sent to the API Gateway via HTTP or WebSocket
+   - API Gateway forwards the query to the Search Service
+   - Search Service queries Elasticsearch for matching resources
+   - If few results are found, a new crawl job is initiated
+   - Results are returned to the user via HTTP or streamed via WebSocket
+   - New resources are streamed to the user as they're discovered and indexed
 
-1. User enters a search query in the frontend
-2. The frontend sends a request to the API
-3. The API queries the Search Engine
-4. The Search Engine retrieves results from Elasticsearch
-5. If few or no results are found, the API starts a new crawler job
-6. Results are returned to the frontend
-7. If the WebSocket connection is active, real-time updates are pushed to the client as new resources are discovered
+2. **Crawling Flow**:
+   - Crawl job is created by the API Gateway or Search Service
+   - Job Queue schedules the job based on priority
+   - Resource Crawler picks up the job and begins crawling
+   - Discovered URLs are sent back to Job Queue for further crawling
+   - Extracted resources are sent to the Resource Processor
+   - Resource Processor enriches and validates the resources
+   - Processed resources are sent to the Indexing Service
+   - Indexing Service indexes the resources in Elasticsearch
+   - Streaming Service is notified of new resources
+   - New resources are streamed to connected WebSocket clients
 
-### Crawling Flow
+## Data Model
 
-1. API or Scheduler triggers a new crawler job with a search query
-2. Crawler Service initiates Scrapy spiders with the search query
-3. Spiders crawl the web, following links and extracting resource information
-4. Extracted resources are processed through the pipeline
-5. Resources are indexed in Elasticsearch
-6. Updates are published to Redis
-7. Streaming API receives updates from Redis and pushes them to connected clients
+### Resource Document
 
-## Crawling Strategy
+```json
+{
+  "id": "unique-identifier",
+  "url": "https://example.com/resource",
+  "title": "Resource Title",
+  "description": "Brief description of the resource",
+  "content": "Full text content of the resource",
+  "code_snippets": [
+    {
+      "code": "print('Hello World')",
+      "language": "python",
+      "context": "example usage"
+    }
+  ],
+  "domain": "example.com",
+  "type": "tutorial", // Or "documentation", "article", "repository", etc.
+  "languages": ["python"],
+  "frameworks": ["django"],
+  "authors": ["John Doe"],
+  "tags": ["web", "database", "ORM"],
+  "timestamp": "2023-05-15T14:22:31.894Z",
+  "published_date": "2023-05-10T00:00:00.000Z",
+  "quality_score": 0.85,
+  "popularity_score": 0.75,
+  "readability_score": 0.8,
+  "metadata": {
+    // Additional metadata specific to resource type
+  }
+}
+```
 
-The crawler employs a sophisticated strategy to discover and index programming resources:
+### Crawl Job
 
-1. **Seed URLs**: Start with curated URLs relevant to the search query
-2. **Breadth-First Crawling**: Follow links in a breadth-first manner to discover related content
-3. **Content Detection**: Identify pages containing valuable programming resources
-4. **Resource Extraction**: Extract structured data from identified pages
-5. **Quality Scoring**: Assign quality scores based on multiple factors
-6. **Indexing**: Store extracted and scored resources in Elasticsearch
+```json
+{
+  "id": "job-identifier",
+  "query": "python tutorial",
+  "depth": 3,
+  "priority": "high",
+  "status": "running",
+  "created_at": "2023-05-15T14:22:31.894Z",
+  "started_at": "2023-05-15T14:23:31.894Z",
+  "completed_at": null,
+  "urls_discovered": 127,
+  "resources_found": 34,
+  "settings": {
+    "follow_external_links": true,
+    "max_pages_per_domain": 50,
+    "respect_robots_txt": false
+  }
+}
+```
 
-### URL Selection Logic
+## Storage Systems
 
-The crawler uses a sophisticated algorithm to determine which URLs to follow:
+### Elasticsearch
 
-1. Always follow URLs containing the search query term
-2. Always follow URLs from priority domains (GitHub, Stack Overflow, etc.)
-3. Filter out obviously irrelevant content (login pages, etc.)
-4. Follow most other URLs to maximize discovery
+- **Purpose**: Main search index and resource storage
+- **Schema**: Custom mappings for code-oriented text search
+- **Indices**:
+  - `resources-v{version}`: Main resource index
+  - `crawl-jobs`: Crawl job metadata
+  - `stats`: System statistics
 
-### Resource Detection
+### Redis
 
-The system identifies valuable programming resources based on several indicators:
+- **Purpose**: Queuing, caching, and real-time communication
+- **Data Structures**:
+  - Lists: Job queues for different priorities
+  - Sets: URL deduplication
+  - Sorted Sets: Prioritized job scheduling
+  - Pub/Sub: Real-time updates
+  - Hashes: Job status tracking
 
-1. Presence of code snippets
-2. Keywords in title and description
-3. Page structure (tutorials, documentation, etc.)
-4. Domain reputation
-5. Content relevance to the search query
+### File System
 
-## Scaling Considerations
+- **Purpose**: Storing raw crawled content and logs
+- **Organization**:
+  - `/data/crawl/{job_id}/`: Raw crawled content
+  - `/logs/`: Application logs
+  - `/config/`: Configuration files
 
-The architecture is designed to scale horizontally across all components:
+## Scalability Considerations
 
-1. **Frontend**: Static content can be served through CDN
-2. **API/Streaming API**: Can be deployed across multiple instances behind a load balancer
-3. **Elasticsearch**: Supports clustering for high availability and capacity
-4. **Redis**: Can be configured in cluster mode
-5. **Crawler**: Can run multiple instances with coordinated work distribution
+Resource Grep is designed to scale horizontally:
+
+1. **API Gateway**: Can be scaled horizontally behind a load balancer
+2. **Search Service**: Elasticsearch cluster can add nodes for increased search capacity
+3. **Resource Crawler**: Multiple crawler instances can run in parallel
+4. **Resource Processor**: Stateless design allows for easy scaling
+5. **Indexing Service**: Multiple instances can handle high indexing volume
+6. **Job Queue**: Redis can be configured as a cluster for high availability
+7. **Streaming Service**: Can be scaled horizontally with sticky sessions
+
+## Performance Optimizations
+
+1. **Search**:
+   - Query caching for popular searches
+   - Compound indexing strategies for common query patterns
+   - Result pagination with deep paging optimization
+   - Filter caching
+
+2. **Crawling**:
+   - Distributed crawling with URL partitioning
+   - Adaptive crawl rate based on server response
+   - Incremental crawling for previously visited sites
+   - Priority-based scheduling for important resources
+
+3. **Indexing**:
+   - Bulk indexing for efficiency
+   - Background refresh of search index mappings
+   - Time-based index rolling for historical data
+
+4. **Streaming**:
+   - Connection pooling
+   - Message batching
+   - Selective broadcasting based on client interest
+
+## Deployment Architecture
+
+Resource Grep is designed to be deployed as Docker containers, either on a single server for development or across multiple servers for production.
+
+### Development Environment
+
+```
+┌─────────────────────────────────────┐
+│           Docker Compose            │
+├─────────┬─────────┬─────────┬───────┤
+│  API &  │         │         │       │
+│ Stream  │ Elastic │  Redis  │Crawler│
+│ Services│ search  │         │       │
+└─────────┴─────────┴─────────┴───────┘
+```
+
+### Production Environment
+
+```
+┌─────────────────────────────────────┐
+│            Load Balancer            │
+└┬────────────────┬──────────────────┬┘
+ │                │                  │
+┌▼───────┐    ┌───▼────┐    ┌────────▼─┐
+│ API    │    │ API    │    │ API      │
+│ Server │    │ Server │... │ Server   │
+└┬───────┘    └┬───────┘    └┬─────────┘
+ │             │             │
+┌▼─────────────▼─────────────▼──┐
+│      Message Queue (Redis)     │
+└┬─────────────────────────────┬─┘
+ │                             │
+┌▼────────────┐     ┌──────────▼───┐
+│ Crawler     │     │ Resource      │
+│ Cluster     │     │ Processor     │
+└┬────────────┘     └┬──────────────┘
+ │                   │
+┌▼──────────────────▼─┐
+│  Elasticsearch       │
+│  Cluster             │
+└─────────────────────┘
+```
 
 ## Security Considerations
 
-1. **Rate Limiting**: Protect API endpoints from abuse
-2. **Robots.txt Compliance**: Respect website crawling policies
-3. **User Agent Identification**: Clearly identify crawler
-4. **Data Validation**: Validate and sanitize all inputs
-5. **Monitoring**: Monitor for unusual patterns or potential abuse
+1. **API Security**:
+   - Rate limiting to prevent abuse
+   - Input validation to prevent injection attacks
+   - CORS configuration for browser security
 
-## Future Enhancements
+2. **Crawler Security**:
+   - User-agent identification
+   - Respect for robots.txt (configurable)
+   - Rate limiting per domain
+   - TLS/SSL for secure connections
 
-1. **Embeddings-based Semantic Search**: Use ML models to understand query intent
-2. **Adaptive Crawling**: Adjust crawling patterns based on discovered content quality
-3. **User Feedback Loop**: Incorporate user feedback to improve search results
-4. **Custom Ranking Models**: Allow domain-specific ranking adjustments
-5. **Content Classification**: Automatically categorize content by type and technology
-6. **Multi-language Support**: Expand beyond English content
-7. **Resource Recommendation**: Suggest related resources based on user behavior 
+3. **Data Security**:
+   - Sanitization of indexed content
+   - No storage of sensitive information
+   - Regular security scanning of indexed content
+
+4. **Infrastructure Security**:
+   - Network isolation between components
+   - Least privilege principles for service accounts
+   - Regular security updates
+
+## Monitoring and Observability
+
+1. **Logging**:
+   - Structured logging with contextual information
+   - Log aggregation across services
+   - Log-based alerts for critical issues
+
+2. **Metrics**:
+   - Resource utilization metrics
+   - Search performance metrics
+   - Crawler efficiency metrics
+   - Index growth metrics
+
+3. **Alerting**:
+   - Service health alerts
+   - Performance degradation alerts
+   - Data quality alerts
+
+## Future Architecture Extensions
+
+1. **Advanced Search Features**:
+   - Semantic search with vector embeddings
+   - Personalized search based on user preferences
+   - Code-specific search with AST parsing
+
+2. **Content Analysis**:
+   - Automatic categorization using machine learning
+   - Quality scoring based on content semantics
+   - Resource relationship mapping
+
+3. **User Features**:
+   - User accounts with saved searches
+   - Resource recommendations
+   - Collaborative filtering
+
+4. **Integration**:
+   - IDE plugins for direct search
+   - CLI tools for developer workflows
+   - API integrations with developer tools 
