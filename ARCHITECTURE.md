@@ -6,7 +6,51 @@ This document describes the architecture of Resource Grep, a real-time search en
 
 Resource Grep is designed as a distributed system composed of several microservices that work together to provide real-time search capabilities. The system follows an event-driven architecture to enable asynchronous processing, scalability, and real-time updates.
 
-![Architecture Diagram](docs/images/architecture.png)
+```mermaid
+graph TD
+    User[User/Client] --> Frontend[Static Frontend]
+    
+    Frontend --> API[RESTful API]
+    Frontend --> StreamingAPI[WebSocket API]
+    
+    API --> SearchEngine[Search Engine]
+    StreamingAPI --> SearchEngine
+    
+    SearchEngine --> Elasticsearch[(Elasticsearch)]
+    
+    API -- "Start Crawler" --> CrawlerService[Crawler Service]
+    StreamingAPI -- "Live Results" --> Redis[(Redis)]
+    
+    CrawlerService --> Scrapy[Scrapy Spiders]
+    Scrapy --> Internet[Internet Resources]
+    
+    Scrapy -- "Index Results" --> Elasticsearch
+    Scrapy -- "Publish Updates" --> Redis
+    
+    Redis -- "Subscribe Updates" --> StreamingAPI
+    
+    subgraph Data Sources
+        Internet
+    end
+    
+    subgraph Storage Layer
+        Elasticsearch
+        Redis
+    end
+    
+    subgraph Service Layer
+        API
+        SearchEngine
+        StreamingAPI
+        CrawlerService
+        Scrapy
+    end
+    
+    subgraph Presentation Layer
+        Frontend
+        User
+    end
+```
 
 ## Core Components
 
