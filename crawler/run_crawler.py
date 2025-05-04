@@ -50,8 +50,22 @@ def start_crawler(seed_urls=None, search_query=None):
     # Add logging of the query
     logger.info(f"Starting crawler job {job_id} with query: {query}")
     
-    # Run scrapy crawl command
-    subprocess.Popen(cmd)
+    # Run scrapy crawl command with correct path and env settings
+    try:
+        # Use absolute paths and correct working directory
+        env = os.environ.copy()
+        env['PYTHONPATH'] = '/app'  # Ensure python can find the modules
+        
+        subprocess.Popen(
+            cmd,
+            cwd='/app/crawler',  # Set working directory to crawler folder
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        logger.info(f"Successfully launched crawler for query: {query}")
+    except Exception as e:
+        logger.error(f"Error launching crawler: {e}")
     
     return job_id
 

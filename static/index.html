@@ -238,12 +238,13 @@
                 if (!existingToggle) {
                     const toggleContainer = document.createElement('div');
                     toggleContainer.className = 'mt-2 flex justify-end';
+                    toggleContainer.id = searchModeToggleId;
                     toggleContainer.innerHTML = `
                         <div class="inline-flex rounded-md shadow-sm" role="group">
-                            <button id="http-mode" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-l-lg active">
+                            <button id="http-mode" class="px-4 py-2 text-sm font-medium text-white bg-indigo-400 rounded-l-lg">
                                 HTTP Search
                             </button>
-                            <button id="ws-mode" class="px-4 py-2 text-sm font-medium text-white bg-indigo-400 rounded-r-lg">
+                            <button id="ws-mode" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 active rounded-r-lg">
                                 WebSocket (Live)
                             </button>
                         </div>
@@ -273,19 +274,17 @@
                         const wsURL = getWebSocketURL();
                         connectWebSocket(wsURL);
                     });
-                }
-                
-                // Check if WebSocket mode is active
-                const wsMode = document.getElementById('ws-mode')?.classList.contains('active');
-                
-                if (wsMode) {
-                    // Use WebSocket for searching
-                    const wsURL = getWebSocketURL();
-                    connectWebSocket(wsURL);
                 } else {
-                    // Directly use the regular HTTP search
-                    fallbackToRegularSearch();
+                    // If toggle already exists, set WebSocket mode as active by default
+                    document.getElementById('ws-mode').classList.remove('bg-indigo-400');
+                    document.getElementById('ws-mode').classList.add('bg-indigo-600', 'active');
+                    document.getElementById('http-mode').classList.remove('bg-indigo-600', 'active');
+                    document.getElementById('http-mode').classList.add('bg-indigo-400');
                 }
+                
+                // Use WebSocket for searching by default
+                const wsURL = getWebSocketURL();
+                connectWebSocket(wsURL);
             }
             
             function getWebSocketURL() {
@@ -315,15 +314,15 @@
                         // Show that we're in WebSocket mode
                         resultStats.textContent = 'Using WebSocket for live search results...';
                         
-                        // Clear loading skeletons, but keep any existing results
+                        // Clear loading skeletons
                         const skeletons = resultsContainer.querySelectorAll('.skeleton');
                         skeletons.forEach(skeleton => skeleton.remove());
                         
                         // Add info message if no results yet
-                        if (resultsReceived === 0 && !resultsContainer.querySelector('.bg-white')) {
+                        if (resultsReceived === 0) {
                             resultsContainer.innerHTML = `
                                 <div class="bg-white p-6 rounded-lg shadow-md text-center">
-                                    <p class="text-gray-600">Waiting for results for "${currentQuery}"</p>
+                                    <p class="text-gray-600">Searching for "${currentQuery}"</p>
                                     <p class="text-sm text-gray-500 mt-2">Results will appear here in real-time as they're found</p>
                                     <div class="mt-4">
                                         <div class="animate-pulse bg-blue-200 h-2 w-full rounded"></div>
@@ -344,26 +343,37 @@
                     // Handle errors
                     webSocket.onerror = function(error) {
                         console.error("WebSocket error:", error);
-                        addStatusUpdate('WebSocket error. Falling back to HTTP search.', 'error');
-                        resultStats.textContent = 'Error connecting to search service';
-                        resultsContainer.innerHTML = `
-                            <div class="bg-red-100 text-red-700 p-4 rounded-lg">
-                                <p>Error: Could not connect to search service</p>
-                                <p class="mt-2 text-sm">Please try again later or use the regular search.</p>
-                            </div>
-                        `;
+                        addStatusUpdate('WebSocket connection error. Retrying...', 'warning');
                         
-                        // Fall back to regular search
-                        fallbackToRegularSearch();
+                        // Try to reconnect once before falling back
+                        setTimeout(() => {
+                            try {
+                                const wsURL = getWebSocketURL();
+                                webSocket = new WebSocket(wsURL);
+                                
+                                webSocket.onopen = function() {
+                                    addStatusUpdate('WebSocket reconnected successfully!', 'success');
+                                };
+                                
+                                webSocket.onerror = function() {
+                                    // If second attempt fails, fall back to HTTP
+                                    addStatusUpdate('WebSocket reconnection failed. Falling back to HTTP search.', 'error');
+                                    fallbackToRegularSearch();
+                                };
+                            } catch (e) {
+                                addStatusUpdate('WebSocket reconnection error. Falling back to HTTP search.', 'error');
+                                fallbackToRegularSearch();
+                            }
+                        }, 1000);
                     };
                     
                     // Connection closed
                     webSocket.onclose = function(event) {
                         console.log("WebSocket connection closed", event);
                         
-                        // Only show message if it wasn't our own closing
-                        if (event.code !== 1000) {
-                            addStatusUpdate('WebSocket connection closed.', 'warning');
+                        // Only show message if it wasn't our own closing and wasn't already handled by error handler
+                        if (event.code !== 1000 && !event.wasClean) {
+                            addStatusUpdate('WebSocket connection closed unexpectedly.', 'warning');
                             resultStats.textContent = 'Search connection closed';
                         }
                     };
@@ -430,7 +440,11 @@
                             resultsContainer.innerHTML = `
                                 <div class="bg-white p-6 rounded-lg shadow-md text-center">
                                     <p class="text-gray-600">No results found for "${currentQuery}"</p>
-                                    <p class="text-sm text-gray-500 mt-2">Try using different keywords or removing filters</p>
+                                    <p class="text-sm text-gray-500 mt-2">Starting a crawler to collect data for this query</p>
+                                    <div class="mt-4">
+                                        <div class="animate-pulse bg-blue-200 h-2 w-full rounded"></div>
+                                    </div>
+                                    <p class="text-gray-600 mt-4">Stay on this page to see results as they're found</p>
                                 </div>
                             `;
                             addStatusUpdate('Starting crawler for new content...', 'info');

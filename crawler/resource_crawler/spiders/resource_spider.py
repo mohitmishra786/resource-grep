@@ -52,18 +52,43 @@ class ResourceSpider(scrapy.Spider):
         super(ResourceSpider, self).__init__(*args, **kwargs)
         self.search_query = search_query
         
-        # Handle start URLs from command line
-        if start_urls:
-            if isinstance(start_urls, str):
-                self.start_urls = start_urls.split(',')
-            elif isinstance(start_urls, (list, tuple)):
-                self.start_urls = list(start_urls)
+        # Use search query to build better starting URLs if provided
+        if search_query:
+            logger.info(f"Initializing spider with search query: {search_query}")
+            
+            # Add specific search URLs for different sites based on the query
+            search_specific_urls = [
+                f'https://github.com/topics/{search_query}',
+                f'https://stackoverflow.com/questions/tagged/{search_query}',
+                f'https://dev.to/t/{search_query}',
+                f'https://www.geeksforgeeks.org/search/{search_query}',
+                f'https://www.google.com/search?q={search_query}+programming+tutorial',
+                f'https://www.bing.com/search?q={search_query}+programming+guide',
+                f'https://duckduckgo.com/?q={search_query}+programming'
+            ]
+            
+            # Handle start URLs from command line
+            if start_urls:
+                if isinstance(start_urls, str):
+                    self.start_urls = start_urls.split(',')
+                elif isinstance(start_urls, (list, tuple)):
+                    self.start_urls = list(start_urls)
+                else:
+                    self.start_urls = search_specific_urls
+            else:
+                self.start_urls = search_specific_urls
+        else:
+            # If no search query, use the provided start_urls or default ones
+            if start_urls:
+                if isinstance(start_urls, str):
+                    self.start_urls = start_urls.split(',')
+                elif isinstance(start_urls, (list, tuple)):
+                    self.start_urls = list(start_urls)
+                else:
+                    self.start_urls = self.default_start_urls
             else:
                 self.start_urls = self.default_start_urls
-        else:
-            self.start_urls = self.default_start_urls
             
-        logger.info(f"Initialized spider with search query: {search_query}")
         logger.info(f"Starting URLs: {self.start_urls}")
     
     def parse(self, response):
@@ -123,12 +148,23 @@ class ResourceSpider(scrapy.Spider):
         description = ' '.join(description.split())
         
         # Detect programming language
-        languages = ['python', 'javascript', 'java', 'cpp', 'c++', 'ruby', 'php', 'golang', 'rust']
+        languages = ['python', 'javascript', 'java', 'cpp', 'c++', 'ruby', 'php', 'golang', 'rust', 'zig', 'concurrency', 'async', 'mvcc']
         detected_languages = [lang for lang in languages if lang.lower() in (title + ' ' + description).lower()]
         
-        # If search query is provided, only process content related to that query
-        if self.search_query and self.search_query.lower() not in (title + ' ' + description).lower():
-            return None
+        # If search query is provided, verify it's somewhat related to the content
+        if self.search_query:
+            # Add the search query as a detected language if it's not already included
+            # This helps ensure we're finding content related to our search
+            if self.search_query.lower() not in [l.lower() for l in detected_languages]:
+                detected_languages.append(self.search_query.lower())
+            
+            # Check if content is related to the search query
+            if self.search_query.lower() not in (title + ' ' + description).lower():
+                # Check if query appears in the page content
+                page_text = ' '.join(response.css('body ::text').getall())
+                if self.search_query.lower() not in page_text.lower():
+                    # Skip if not related to search query at all
+                    return None
         
         # Extract main content based on common content containers
         content_selectors = [
